@@ -32,7 +32,7 @@ local PROCS = {
 		flash = true,
 		file = "Interface\\Icons\\Ability_Shaman_Stormstrike",
 		tip = "Stormstrike is up: your next Nature spells (shocks, Lightning Bolt) hit harder." },
-	{ key = "flurry", cfg = "flurry", name = "Flurry", ids = { 16257, 16277, 16278, 16279, 16280 },
+	{ key = "flurry", cfg = "flurry", name = "Flurry", ids = { 16257, 16277, 16278, 16279, 16280 }, flash = true,
 		file = "Interface\\Icons\\Ability_GhoulFrenzy",
 		tip = "Flurry: faster attacks for the next swings. The number is swings left." },
 }

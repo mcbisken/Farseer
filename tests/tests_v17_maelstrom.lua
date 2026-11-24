@@ -171,6 +171,14 @@ test("v17: Maelstrom blinkar vid 5 och Stormstrike blinkar", function()
 	PC:UpdateProcs()
 	local cc = _G.FarseerProcclearcast
 	check(cc:IsShown() and cc.glow:IsShown(), "Clearcasting blinkar")
+	-- Flurry blinkar också
+	MOCK.auras.player = { { name = "Flurry", spellId = 16257, applications = 3, auraInstanceID = 78 } }
+	local oldFlurry = ns.char.procs.flurry
+	ns.char.procs.flurry = true
+	PC:UpdateProcs()
+	local fl = _G.FarseerProcflurry
+	check(fl:IsShown() and fl.glow:IsShown(), "Flurry blinkar")
+	ns.char.procs.flurry = oldFlurry
 	MOCK.auras.player = {}
 	MOCK.unlearn("Stormstrike")
 	ns.Spellbook:Scan()
