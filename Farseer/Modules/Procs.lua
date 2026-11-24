@@ -204,15 +204,39 @@ function PC:Maelstrom()
 	local a = playerAura(ns.MAELSTROM_BUFF, "Maelstrom Weapon", mwInstance)
 	local inst = instanceOf(a)
 	if inst then mwInstance = inst elseif a == nil then mwInstance = nil end
-	return applications(a)
+	local n, raw = applications(a)
+	return n, raw, a
+end
+
+-- Ikonen: Maelstrom Weapon är en rune/talang och finns ofta inte i spellboken, så namnuppslaget ger
+-- ingen ikon. Ordning: buffens egen ikon -> kända spell-ID:n -> namnet -> ikonens fil.
+local MW_ICON = "Interface\\Icons\\Spell_Shaman_MaelstromWeapon"
+function PC:MaelstromIcon(a)
+	if a ~= nil and not ns.isSecret(a) then
+		local ok, ic = pcall(function() return a.icon end)
+		if ok and ic ~= nil then return ic end
+	end
+	local ids = {}
+	for _, id in ipairs(ns.MAELSTROM_BUFF or {}) do table.insert(ids, id) end
+	for _, id in ipairs((ns.SPELL_IDS and ns.SPELL_IDS["Maelstrom Weapon"]) or {}) do table.insert(ids, id) end
+	local known = ns.Spellbook:ID("Maelstrom Weapon")
+	if known then table.insert(ids, 1, known) end
+	for _, id in ipairs(ids) do
+		local t = C_Spell and ns.get(C_Spell.GetSpellTexture, id)
+		if t and t ~= 134400 then return t end
+	end
+	local t = C_Spell and ns.get(C_Spell.GetSpellTexture, ns.L("Maelstrom Weapon"))
+	if t and t ~= 134400 then return t end
+	return MW_ICON
 end
 
 function PC:UpdateMaelstrom()
 	local f = icons.maelstrom
 	if not (cfg().maelstrom and ns.Spellbook:Knows("Maelstrom Weapon")) then setShown(f, false) return end
-	local n, raw = self:Maelstrom()
+	local n, raw, aura = self:Maelstrom()
 	local max = ns.MAELSTROM_MAX or 5
-	f.icon:SetTexture(ns.spellIcon("Maelstrom Weapon"))
+	-- Buffens ikon kan vara secret i strid: SetTexture tar emot den ändå, annars filen
+	if not pcall(f.icon.SetTexture, f.icon, self:MaelstromIcon(aura)) then f.icon:SetTexture(MW_ICON) end
 	setShown(f, InCombatLockdown() or (n ~= 0))
 	showCount(f.count, n, raw)
 	pcall(f.sensor.SetValue, f.sensor, n or raw or 0)

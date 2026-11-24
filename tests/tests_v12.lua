@@ -669,3 +669,14 @@ test("keybinds: Shift-lager och behåll mina", function()
 	ns.Options:Open("bindings")
 	MOCK.bindings = {}
 end)
+
+---------------------------------------------------------------------------------------------------
+test("Maelstrom-ikonen", function()
+	local PC = ns.Procs
+	check(PC:MaelstromIcon({ icon = 4242 }) == 4242, "buffens egen ikon först")
+	check(PC:MaelstromIcon(nil) ~= nil and PC:MaelstromIcon(nil) ~= 134400, "ikon via spell-ID utan buff")
+	local saved = C_Spell.GetSpellTexture
+	C_Spell.GetSpellTexture = function() return nil end
+	check(PC:MaelstromIcon(nil) == "Interface\\Icons\\Spell_Shaman_MaelstromWeapon", "ikonfilen som sista utväg")
+	C_Spell.GetSpellTexture = saved
+end)
