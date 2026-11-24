@@ -25,7 +25,7 @@ local wbWarned           -- Water Breathing-instansen vi redan varnat för
 -- namnet), file = ikonfilen som sista utväg, requires = spell/talang som måste finnas. Clearcasting och
 -- Flurry visas bara när buffen finns, så de behöver ingen kontroll av talangen.
 local PROCS = {
-	{ key = "clearcast", cfg = "clearcast", name = "Clearcasting", ids = { 16246 },
+	{ key = "clearcast", cfg = "clearcast", name = "Clearcasting", ids = { 16246 }, flash = true,
 		file = "Interface\\Icons\\Spell_Shadow_ManaBurn",
 		tip = "Elemental Focus: your next damage spell costs less mana." },
 	{ key = "stormstrike", cfg = "stormstrike", name = "Stormstrike", ids = {}, requires = "Stormstrike", target = true,

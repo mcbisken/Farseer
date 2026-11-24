@@ -165,12 +165,12 @@ test("v17: Maelstrom blinkar vid 5 och Stormstrike blinkar", function()
 	ns.char.procs.flash = true
 	PC:UpdateProcs()
 	check(ss.glow:IsShown(), "flash på igen")
-	-- Clearcasting blinkar inte
+	-- Clearcasting blinkar också
 	MOCK.auras.player = { { name = "Clearcasting", spellId = 16246, applications = 0, auraInstanceID = 77 } }
 	ns.char.procs.clearcast = true
 	PC:UpdateProcs()
 	local cc = _G.FarseerProcclearcast
-	check(cc:IsShown() and not cc.glow:IsShown(), "Clearcasting utan blinkning")
+	check(cc:IsShown() and cc.glow:IsShown(), "Clearcasting blinkar")
 	MOCK.auras.player = {}
 	MOCK.unlearn("Stormstrike")
 	ns.Spellbook:Scan()

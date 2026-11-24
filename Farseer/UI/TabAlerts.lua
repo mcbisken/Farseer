@@ -80,7 +80,7 @@ tab("procs", "Procs", function(p, track)
 		{ "Sound at 5 stacks", function() return c.maelstromSound end, function(v) c.maelstromSound = v end,
 			"Only when the count can be read (the game may hide it in combat; the icon still lights up)." },
 		{ "Flash procs", function() return c.flash end, function(v) c.flash = v; changed() end,
-			"Maelstrom flashes at 5 stacks and Stormstrike flashes while it is up. Off = steady border." },
+			"Maelstrom flashes at 5 stacks; Stormstrike and Clearcasting flash while they are up. Off = steady border." },
 		{ "Elemental Focus (Clearcasting)", function() return c.clearcast end, function(v) c.clearcast = v; changed() end,
 			"Icon while Clearcasting is up: your next spells cost less — always spend it." },
 		{ "Stormstrike buff", function() return c.stormstrike end, function(v) c.stormstrike = v; changed() end,
