@@ -41,8 +41,34 @@ end
 ---------------------------------------------------------------------------------------------------
 local frame
 local current
+local currentPrio = 0
 local lastSound = {}
 local SOUND_GAP = 8
+
+-- Prioritet: en varning ersätter bara en som är lika viktig eller mindre viktig.
+--   info     = upplysning (totem dog/gick ut/utom räckhåll, purge, pull-check)
+--   advice   = rådgivarens totemförslag, låg mana
+--   critical = det som måste göras nu (fear på dig, bossens fear om några sekunder, kick i PvP, andning)
+AL.PRIO = { info = 1, advice = 2, critical = 3 }
+local function prioOf(p)
+	if type(p) == "number" then return p end
+	return AL.PRIO[p or ""] or nil
+end
+
+-- Var varningar visas: "always", "group" (grupp eller instans), "instance" (bara instanser/BG) eller "off"
+function AL:InGroupOrInstance()
+	local inst = ns.get(IsInInstance)
+	if inst == true then return true end
+	local n = ns.get(GetNumGroupMembers) or 0
+	return type(n) == "number" and n > 0
+end
+function AL:Allowed()
+	local mode = ns.db.alert.mode or "always"
+	if mode == "off" then return false end
+	if mode == "instance" then return ns.get(IsInInstance) == true end
+	if mode == "group" then return self:InGroupOrInstance() end
+	return true
+end
 
 function AL:Build()
 	local cfg = ns.db.alert
@@ -83,56 +109,85 @@ function AL:Build()
 	frame:Hide()
 end
 
--- Kortvarig varning (t.ex. "totemet dog") som rådgivaren inte skriver över under `seconds` sekunder
+-- Kortvarig varning (t.ex. "totemet dog") som bara en viktigare varning skriver över under `seconds` sekunder
 local flashUntil = 0
+local flashToken = 0
 local function flashing() return GetTime() < flashUntil end
 
--- key: regelns id, så samma varning inte poppar/låter om och om igen
-function AL:Show(key, spell, title, text, color, force)
-	if not frame then return end
-	if flashing() and not force then return end
+-- key: regelns id, så samma varning inte poppar/låter om och om igen. prio: se AL.PRIO (standard advice).
+-- Returnerar true om varningen visades.
+function AL:Show(key, spell, title, text, color, force, prio)
+	if not frame then return false end
+	if not self:Allowed() then return false end
+	prio = prioOf(prio) or AL.PRIO.advice
+	-- En pågående flash ersätts bara av något viktigare (rådgivarens förslag trycker inte undan en lika viktig flash)
+	if flashing() and not force and prio <= currentPrio then return false end
+	-- En flash (force) tränger inte undan en kritisk varning som visas nu (t.ex. "TREMOR!" när du är fearad)
+	if force and current and current ~= key and currentPrio >= AL.PRIO.critical and prio < currentPrio then
+		return false
+	end
+	-- Rådgivaren tog över från en flash: flashen är slut (annars blockeras Hide/Show tills dess tid gått)
+	if not force then flashUntil = 0 end
 	local fresh = current ~= key
 	current = key
+	currentPrio = prio
 	frame.icon:SetTexture(ns.spellIcon(spell))
 	local c = color or { 1, 0.82, 0 }
 	frame.title:SetText(title or "")
 	frame.title:SetTextColor(c[1], c[2], c[3])
 	frame.ring:SetVertexColor(c[1], c[2], c[3])
 	frame.text:SetText(text or "")
-	frame.text:SetShown(ns.char.advisor.showText)
+	-- "Visa förklaring" gäller rådgivarens text; en flash är meningslös utan sin text (t.ex. pull-checkens lista)
+	frame.text:SetShown(force or ns.char.advisor.showText)
 	frame:Show()
 	if fresh then
 		frame.pop:Play()
 		local now = GetTime()
-		if ns.char.advisor.sound and (not lastSound[key] or now - lastSound[key] > SOUND_GAP) then
+		local quiet = ns.db.alert.quietInfo ~= false and prio <= AL.PRIO.info
+		if ns.char.advisor.sound and not quiet and (not lastSound[key] or now - lastSound[key] > SOUND_GAP) then
 			lastSound[key] = now
 			local kit = SOUNDKIT and SOUNDKIT.RAID_WARNING or 8959
 			pcall(PlaySound, kit, "Master")
 		end
 	end
+	return true
 end
 
-function AL:Flash(key, spell, title, text, color, seconds)
+-- prio: standard info. Returnerar true om den visades (en viktigare varning kan vara uppe).
+function AL:Flash(key, spell, title, text, color, seconds, prio)
+	prio = prioOf(prio) or AL.PRIO.info
+	if flashing() and prio < currentPrio then return false end
+	local wasUntil = flashUntil
 	flashUntil = 0
-	self:Show(key, spell, title, text, color, true)
+	if not self:Show(key, spell, title, text, color, true, prio) then
+		flashUntil = wasUntil
+		return false
+	end
 	flashUntil = GetTime() + (seconds or 3)
+	flashToken = flashToken + 1
+	local token = flashToken
+	-- Token: en ny flash (även med samma key) får hela sin tid, den gamla timern döljer den inte
 	C_Timer.After(seconds or 3, function()
-		if current == key then
+		if token == flashToken and current == key then
 			flashUntil = 0
 			AL:Hide()
 		end
 	end)
+	return true
 end
 
 function AL:Hide(force)
 	if flashing() and not force then return end
 	current = nil
+	currentPrio = 0
 	if frame and ns.char.locked then frame:Hide() end
 end
 
 function AL:Current() return current end
 
 function AL:Test()
+	flashUntil = 0
+	current, currentPrio = nil, 0
 	self:Flash("test", "Tremor Totem", "TREMOR TOTEM!", "Test: this is what a warning looks like. Drag it while the addon is unlocked.",
 		{ 1, 0.6, 0.1 }, 4)
 end

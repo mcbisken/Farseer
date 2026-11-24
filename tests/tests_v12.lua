@@ -178,7 +178,9 @@ test("procs: fiendens casts", function()
 	MOCK.runTimers()
 	MOCK.casting.target.notInt = true
 	MOCK.fire("UNIT_SPELLCAST_START", "target")
-	check(ns.Alert:Current() ~= "cast-target", "kan inte avbrytas: ingen varning")
+	-- v1.7: kan inte avbrytas -> Grounding Totem i stället för Earth Shock
+	check(ns.Alert:Current() == "cast-target", "kan inte avbrytas: Grounding-varning")
+	MOCK.runTimers()
 	ns.Procs:Update()
 	check(bar.text:GetText():find("can't be interrupted", 1, true), "visar att den inte kan avbrytas")
 	-- secret: bara att fienden castar, spelets timer driver baren
@@ -236,6 +238,7 @@ end)
 ---------------------------------------------------------------------------------------------------
 test("totems: utom räckhåll + Totemic Call", function()
 	local cb = _G.FarseerTotemicCall
+	ns.char.advisor.soloQuiet = false   -- v1.7: solo utanför instanser är räckviddsvarningen tyst som standard
 	ns.Totems:ApplyCallButton()
 	check(cb:IsShown() and cb:GetAttribute("spell1") == "Totemic Call" and cb:GetAttribute("spell2") == "Totemic Recall",
 		"Totemic Call-knapp")
@@ -294,6 +297,7 @@ test("totems: utom räckhåll + Totemic Call", function()
 	check(not cb:IsShown(), "knappen kan stängas av")
 	ns.char.totemAlerts.callButton = true
 	ns.Totems:ApplyCallButton()
+	ns.char.advisor.soloQuiet = true
 end)
 
 ---------------------------------------------------------------------------------------------------

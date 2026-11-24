@@ -317,6 +317,9 @@ test("varning: fearad -> Tremor högst", function()
 end)
 
 test("varning: fear-mob, boss, zon, gift", function()
+	-- v1.7: fear-mobs räknas bara när de är i strid med dig
+	local uac = rawget(_G, "UnitAffectingCombat")
+	rawset(_G, "UnitAffectingCombat", function() return true end)
 	MOCK.units.target = { name = "Magmadar", hostile = true }
 	local recs = advise()
 	check(recs["Tremor Totem"] ~= nil, "Magmadar -> Tremor")
@@ -350,11 +353,13 @@ test("varning: fear-mob, boss, zon, gift", function()
 	MOCK.units.target = { name = "Testmob", hostile = true }
 	check(advise()["Tremor Totem"] == nil, "fear-mob borttagen")
 	MOCK.units.target = nil
+	rawset(_G, "UnitAffectingCombat", uac)
 	advise()
 	check(ns.Alert:Current() == nil, "ingen varning utan orsak")
 end)
 
 test("varning: inga totems i strid", function()
+	ns.char.advisor.soloQuiet = false   -- v1.7: solo utanför instanser är påminnelsen tyst som standard
 	MOCK.combat = true
 	MOCK.fire("PLAYER_REGEN_DISABLED")
 	MOCK.time = MOCK.time + 10
@@ -364,6 +369,7 @@ test("varning: inga totems i strid", function()
 	MOCK.fire("PLAYER_REGEN_ENABLED")
 	advise()
 	check(ns.Alert:Current() == nil, "borta efter strid")
+	ns.char.advisor.soloQuiet = true
 end)
 
 test("gruppsammansättning -> grön situation", function()

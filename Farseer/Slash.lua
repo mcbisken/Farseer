@@ -135,6 +135,7 @@ function ns.Slash(msg)
 		end
 		local secret = C_Secrets and C_Secrets.ShouldAurasBeSecret and ns.get(C_Secrets.ShouldAurasBeSecret)
 		ns.print("auras secret now: %s, in combat: %s", tostring(secret), tostring(InCombatLockdown()))
+		ns.print("maelstrom display: %s", ns.Procs:MaelstromBoxState())
 		local call, set = ns.Bars:CallSpell()
 		if call then
 			local c = ns.Totems:CallSetContents(set)

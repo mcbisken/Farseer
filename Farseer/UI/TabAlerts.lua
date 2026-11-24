@@ -16,7 +16,27 @@ local function column(p, x, header, rows, track)
 	local y = -28
 	for _, r in ipairs(rows) do
 		local w
-		if r.stepper then
+		if r.dropdown then
+			local l = UI.Label(p, r[1], "GameFontNormalSmall")
+			l:SetPoint("TOPLEFT", p, "TOPLEFT", x + 4, y - 4)
+			local items = r.items
+			w = track(UI.Dropdown(p, r.width or 190, function()
+				local v = r[2]()
+				for _, it in ipairs(items) do if it.value == v then return it.text end end
+				return items[1].text
+			end, function() return items end, function(v) r[3](v) end))
+			w:SetPoint("LEFT", l, "RIGHT", 6, 0)
+			if r[4] then
+				w:HookScript("OnEnter", function(self)
+					GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+					GameTooltip:AddLine(r[1])
+					GameTooltip:AddLine(r[4], 1, 1, 1, true)
+					GameTooltip:Show()
+				end)
+				w:HookScript("OnLeave", function() GameTooltip:Hide() end)
+			end
+			y = y - 30
+		elseif r.stepper then
 			w = track(UI.Stepper(p, r[1], r.min, r.max, r.step, r[2], r[3], r.fmt))
 			w:SetPoint("TOPLEFT", p, "TOPLEFT", x + 28, y)
 			y = y - 26
@@ -91,7 +111,21 @@ end)
 tab("alerts", "Alerts", function(p, track)
 	local c = ns.char.procs
 	local ta = ns.char.totemAlerts
+	local al = ns.db.alert
+	local adv = ns.char.advisor
 	column(p, 4, "Combat alerts", {
+		{ "Show alerts:", dropdown = true, width = 200, items = {
+			{ text = "Everywhere", value = "always" },
+			{ text = "In groups and instances", value = "group" },
+			{ text = "Only in instances", value = "instance" },
+			{ text = "Off (glows only)", value = "off" },
+		}, function() return al.mode or "always" end, function(v) al.mode = v; if v == "off" then ns.Alert:Hide(true) end end,
+			"Where the big warning box may appear. Button glows and bar marks still work when it's off. Account-wide." },
+		{ "No sound for info alerts", function() return al.quietInfo ~= false end, function(v) al.quietInfo = v end,
+			"Totem died/expiring/out of range, purge and pull reminders show silently. Important warnings (fear, boss "
+				.. "fear, kick, low mana) still play the sound." },
+		{ "Quiet when solo", function() return adv.soloQuiet end, function(v) adv.soloQuiet = v end,
+			"Solo outside instances: no \"DROP TOTEMS!\", no out-of-range or expiry warnings (nice while leveling)." },
 		{ "Low mana: suggestion", function() return c.mana end, function(v) c.mana = v end,
 			"In combat: warning with suggestions in the order Mana Tide Totem, Water Shield, Mana Spring Totem." },
 		{ "Threshold (% mana)", stepper = true, min = 5, max = 60, step = 5,

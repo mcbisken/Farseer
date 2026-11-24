@@ -1,13 +1,14 @@
 -- Totemrådgivaren: läser situationen och varnar om vilket totem som behövs.
 -- Regler (var och en kan stängas av):
 --   fear      du är fearad/charmad/sövd (C_LossOfControl)            -> Tremor Totem
---   fearMobs  target/nameplate är en mob som fearar/charmar/söver     -> Tremor Totem
+--   fearMobs  target/nameplate är en mob som fearar/charmar/söver och är i strid med dig -> Tremor Totem
 --   pvpClass  fientlig spelare: klassen styr kontratotemet            -> Grounding/Tremor/Poison...
 --   dispel    gift/sjukdom på dig eller gruppen (när auror går att läsa) -> Cleansing-totems
---   boss      boss/zon med eld-/frost-/naturskada                     -> resist-totems
---   noTotems  i strid en stund utan ett enda totem                    -> påminnelse
+--   boss      boss/zon med eld-/frost-/naturskada                     -> resist-totems (ruta bara i strid)
+--   noTotems  i strid en stund utan ett enda totem                    -> påminnelse (inte solo med soloQuiet)
 --   groupComp gruppens sammansättning (PvE, utanför strid)            -> grön markerad situation
--- Totems som redan är ute ger ingen varning. Allt som kan vara secret läses skyddat.
+-- Totems som redan är ute, eller vars buff du redan har från någon annan, ger ingen varning.
+-- Allt som kan vara secret läses skyddat.
 
 local _, ns = ...
 local AD = ns.module("Advisor")
@@ -96,6 +97,19 @@ function AD:Engaged(unit)
 	return ns.get(UnitIsUnit, unit .. "target", "player") == true
 end
 
+-- Är en mob (fear-mob) faktiskt i strid med dig? I strid (UnitAffectingCombat) eller har dig som target.
+-- Att bara ha den som target/focus räcker inte (du planerar en pull), och en nameplate i närheten
+-- räcker inte heller. Secret/okänt = nej.
+function AD:EngagedMob(unit)
+	if ns.get(UnitAffectingCombat, unit) == true then return true end
+	return ns.get(UnitIsUnit, unit .. "target", "player") == true
+end
+
+-- Är du i strid? (InCombatLockdown eller UnitAffectingCombat; secret = nej)
+local function playerInCombat()
+	return InCombatLockdown() and true or ns.get(UnitAffectingCombat, "player") == true
+end
+
 local function lossOfControl()
 	local C = C_LossOfControl
 	if not C then return false end
@@ -163,22 +177,30 @@ function AD:Evaluate()
 		return {}
 	end
 	local recs = {}
-	local function add(totem, prio, reason, extra)
+	-- kind: "critical" (varningsrutan med prio critical), "quiet" (bara glöd, ingen ruta utanför strid), nil = advice
+	local function add(totem, prio, reason, extra, kind)
 		if not totem or not ns.Spellbook:Knows(totem) then return end
 		if ns.Totems:Active(totem) then return end
+		-- Buffen finns redan på dig från någon annan (t.ex. en annan shamans Fire Resistance i Molten Core)
+		if ns.Totems:BuffState(totem) == true then return end
 		local r = recs[totem]
-		if not r or prio > r.prio then recs[totem] = { totem = totem, prio = prio, reason = reason, extra = extra } end
+		if not r or prio > r.prio then
+			recs[totem] = { totem = totem, prio = prio, reason = reason, extra = extra, kind = kind }
+		end
 	end
 
 	local now = GetTime()
 	local cantAct = ns.get(UnitIsDeadOrGhost, "player") == true or ns.get(UnitOnTaxi, "player") == true
+	-- Zon-/bossregler (resist) visas som ruta bara i strid; utanför strid är de bara glöd
+	local resistKind = not playerInCombat() and "quiet" or nil
 
 	-- 1. Fear/charm/sleep på dig
 	if cfg.fear then
 		local feared, text = lossOfControl()
 		if feared then locHold = now + 6 end
 		if feared or now < locHold then
-			add("Tremor Totem", 100, feared and ("You are " .. (text and text:lower() or "feared") .. "!") or "You were just feared")
+			add("Tremor Totem", 100, feared and ("You are " .. (text and text:lower() or "feared") .. "!") or "You were just feared",
+				nil, "critical")
 		end
 	end
 
@@ -191,7 +213,8 @@ function AD:Evaluate()
 			local bonus = unit == "target" and 10 or 0
 			local lname = u.name and u.name:lower()
 			if not u.player and lname then
-				if cfg.fearMobs and fearNames[lname] then
+				-- Bara en fear-mob som är i strid med dig (inte varje nameplate i närheten)
+				if cfg.fearMobs and fearNames[lname] and AD:EngagedMob(unit) then
 					local what = ns.FEAR_INFO and ns.FEAR_INFO[fearNames[lname]]
 					add("Tremor Totem", 70 + bonus, fearNames[lname] .. (what and (": " .. what) or " can fear/charm/sleep"))
 				end
@@ -199,7 +222,7 @@ function AD:Evaluate()
 					for _, d in ipairs(dispelMobs[lname]) do add(d[1], 40 + bonus, d[2]) end
 				end
 				if cfg.boss and bossRules[lname] then
-					add(bossRules[lname].totem, 50 + bonus, bossRules[lname].reason)
+					add(bossRules[lname].totem, 50 + bonus, bossRules[lname].reason, nil, resistKind)
 				end
 			elseif u.player and u.class and cfg.pvpClass and (cfg.pvpNearby or AD:Engaged(unit)) then
 				for _, rule in ipairs(ns.PVP_CLASS_RULES[u.class] or {}) do
@@ -213,7 +236,7 @@ function AD:Evaluate()
 	if cfg.boss then
 		local zone = ns.get(GetInstanceInfo)
 		local z = zone and ns.ZONE_RULES[zone]
-		if z then add(z[1], 35, z[2]) end
+		if z then add(z[1], 35, z[2], nil, resistKind) end
 	end
 
 	-- 4. Gift/sjukdom
@@ -231,18 +254,19 @@ function AD:Evaluate()
 		end
 	end
 
-	-- Markera knappar
+	-- Markera knappar (alla förslag glöder; "quiet" ger ingen varningsruta)
 	local want = {}
 	local top
 	for totem, r in pairs(recs) do
 		want[totem] = r.reason
-		if not top or r.prio > top.prio then top = r end
+		if r.kind ~= "quiet" and (not top or r.prio > top.prio) then top = r end
 	end
 	ns.Bars:Highlight(want)
 
-	-- 5. Inga totems i strid
+	-- 5. Inga totems i strid (solo utanför instanser: tyst om soloQuiet)
 	local noTotems
-	if cfg.noTotems and combatStart and now - combatStart > 8 and ns.Totems:Count() == 0 then
+	local soloQuiet = cfg.soloQuiet and not ns.Alert:InGroupOrInstance()
+	if cfg.noTotems and not soloQuiet and combatStart and now - combatStart > 8 and ns.Totems:Count() == 0 then
 		local rec = ns.Bars:LoadedIndex() or 1
 		noTotems = ns.Bars:Situation(rec)
 	end
@@ -255,7 +279,7 @@ function AD:Evaluate()
 		local c = el and ns.ELEMENT_COLOR[el]
 		local _, sit = ns.Bars:SituationFor(top.totem)
 		local text = top.reason .. (sit and ("  ·  button: " .. sit.name) or "")
-		ns.Alert:Show(top.totem, top.totem, top.totem:upper() .. "!", text, c)
+		ns.Alert:Show(top.totem, top.totem, top.totem:upper() .. "!", text, c, nil, top.kind == "critical" and "critical" or "advice")
 		if lastTop ~= top.totem then ns.fire("ADVICE", top) end
 	elseif noTotems then
 		ns.Alert:Show("nototems", noTotems.totems and noTotems.totems[1], "DROP TOTEMS!",

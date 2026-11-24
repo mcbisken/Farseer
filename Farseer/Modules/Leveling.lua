@@ -130,30 +130,53 @@ local function oilKind(text)
 	end
 end
 
--- Namn på oljan/stenen på main hand-vapnet + typ, false = ingen, nil = går inte att läsa (secret/inget API)
-function LV:WeaponOil()
+-- Shamanens imbues som de står på vapnets tooltip ("Flametongue 3 (5 min)"): namnet först, sedan en tid
+ns.CHECK_IMBUE = { "rockbiter", "flametongue", "frostbrand", "windfury" }
+
+local function imbueLine(low)
+	if not low:find("%(%d+%s*%a*%)") then return false end
+	for _, p in ipairs(ns.CHECK_IMBUE) do
+		if low:sub(1, #p) == p then return true end
+	end
+	return false
+end
+
+-- Temporära förtrollningar ur vapnets tooltip (slot 16 = main hand, 17 = off-hand):
+-- oljans/stenens namn (false = ingen, nil = går inte att läsa), dess typ, och om en imbue-rad finns
+-- (true/false, nil = går inte att läsa). Delas med Reminders (det gamla imbue-API:t ser inte skillnad).
+function LV:WeaponTemp(slot)
 	local fn = C_TooltipInfo and C_TooltipInfo.GetInventoryItem
 	if not fn then return nil end
-	local data = ns.get(fn, "player", 16)
+	local data = ns.get(fn, "player", slot or 16)
 	local lines = ns.field(data, "lines")
 	if type(lines) ~= "table" then return nil end
-	local unreadable = false
+	local unreadable, oil, kind, imbue = false, nil, nil, false
 	for i = 1, #lines do
 		local line = lines[i]
 		local ok, text = pcall(function() return line.leftText end)
 		if not ok or ns.isSecret(line) or ns.isSecret(text) then
 			unreadable = true
 		elseif type(text) == "string" then
-			local kind = oilKind(text)
-			if kind then
-				-- "Brilliant Wizard Oil (30 min)" -> "Brilliant Wizard Oil"
-				local name = ns.trim((text:gsub("%s*%(%d+%s*%a*%)%s*$", "")))
-				return name, kind
+			if not oil then
+				local k = oilKind(text)
+				if k then
+					-- "Brilliant Wizard Oil (30 min)" -> "Brilliant Wizard Oil"
+					oil, kind = ns.trim((text:gsub("%s*%(%d+%s*%a*%)%s*$", ""))), k
+				end
 			end
+			-- rad 1 är föremålets namn
+			if i > 1 and imbueLine(text:lower()) then imbue = true end
 		end
 	end
-	if unreadable then return nil end
-	return false
+	-- oläsbara rader: det som inte hittades är okänt, inte "saknas"
+	if unreadable then return oil, kind, imbue or nil end
+	return oil or false, kind, imbue
+end
+
+-- Namn på oljan/stenen på vapnet (standard main hand) + typ, false = ingen, nil = går inte att läsa
+function LV:WeaponOil(slot)
+	local oil, kind = self:WeaponTemp(slot)
+	return oil, kind
 end
 
 local function bagItemName(info)
@@ -169,6 +192,25 @@ local function bagItemName(info)
 	return nil
 end
 
+-- Recept/ritningar på oljor ("Formula: Brilliant Wizard Oil") är inga oljor
+local RECIPE_PREFIX = { "formula:", "recipe:", "plans:", "pattern:", "schematic:" }
+local CONSUMABLE = Enum and Enum.ItemClass and Enum.ItemClass.Consumable or 0
+
+local function bagOilKind(name, id)
+	local low = name:lower()
+	for _, p in ipairs(RECIPE_PREFIX) do
+		if low:sub(1, #p) == p then return nil end
+	end
+	-- Föremålsklassen om den går att läsa: bara förbrukningsvaror (olja/sten) räknas
+	local info = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+	if info and id ~= nil then
+		-- itemID, itemType, itemSubType, itemEquipLoc, icon, classID, subClassID
+		local ok, _, _, _, _, _, classID = ns.getAll(info, id)
+		if ok and type(classID) == "number" and classID ~= CONSUMABLE then return nil end
+	end
+	return oilKind(name)
+end
+
 -- Antal oljor/stenar i väskorna (kind = "caster"/"melee"/nil = alla) + namnet på den första; nil = okänt
 function LV:OilsInBags(kind)
 	local C = C_Container
@@ -179,7 +221,7 @@ function LV:OilsInBags(kind)
 		for slot = 1, (type(slots) == "number" and slots or 0) do
 			local info = ns.get(C.GetContainerItemInfo, bag, slot)
 			local name = info and bagItemName(info)
-			local k = name and oilKind(name)
+			local k = name and bagOilKind(name, ns.field(info, "itemID"))
 			if k and (not kind or k == kind) then
 				local n = ns.field(info, "stackCount")
 				total = total + (type(n) == "number" and n or 1)
@@ -235,21 +277,34 @@ function LV:Checklist()
 	if ns.Reminders.ShieldSpell and ns.Reminders:ShieldSpell() then
 		add(ns.Reminders:ShieldUp(), "Shield up (" .. ns.Reminders:ShieldSpell() .. ")")
 	end
-	if ns.Reminders.ImbueSpell and ns.Reminders:ImbueSpell() then
-		local has, left = ns.Reminders:Imbue()
+	local RE = ns.Reminders
+	-- Gräns: 10 min, men högst 30 % av den längsta imbue-tiden som setts (Classic-imbues varar 5 min)
+	local function imbueLimit(hand)
+		local base = 10 * 60
+		local lim = RE.ImbueThreshold and RE:ImbueThreshold(hand, base) or base
+		local tip = lim >= 120 and string.format("At least %d minutes left.", math.floor(lim / 60))
+			or string.format("At least %d seconds left.", math.floor(lim))
+		return lim, tip
+	end
+	local mainHas
+	if RE.ImbueSpell and RE:ImbueSpell() then
+		local has, left = RE:Imbue()
+		mainHas = has
+		local lim, tip = imbueLimit("main")
 		local okI = has
-		if has and left and left < 10 * 60 then okI = false end
-		add(okI, "Weapon imbue" .. (left and has and string.format(" (%d min left)", math.floor(left / 60)) or ""),
-			"At least 10 minutes left.")
+		if has and left and left < lim then okI = false end
+		add(okI, "Weapon imbue" .. (left and has and string.format(" (%d min left)", math.floor(left / 60)) or ""), tip)
 	end
 	local rem = ns.char.reminders or {}
-	local RE = ns.Reminders
 	if rem.offhand ~= false and RE.OffhandSpell and RE:OffhandSpell() and RE:OffhandWeapon() == true then
 		local has, left = RE:OffhandImbue()
+		local lim, tip = imbueLimit("off")
 		local okO = has
-		if has and left and left < 10 * 60 then okO = false end
-		add(okO, "Off-hand imbue" .. (left and has and string.format(" (%d min left)", math.floor(left / 60)) or ""),
-			"At least 10 minutes left. The off-hand reminder button applies " .. RE:OffhandSpell() .. ".")
+		if has and left and left < lim then okO = false end
+		tip = tip .. " The off-hand reminder button applies " .. RE:OffhandSpell() .. "."
+		if mainHas == nil then mainHas = RE:Imbue() end
+		if okO == false and mainHas ~= true then tip = tip .. " Imbue the main hand first." end
+		add(okO, "Off-hand imbue" .. (left and has and string.format(" (%d min left)", math.floor(left / 60)) or ""), tip)
 	end
 	-- Vapenolja/slipsten på main hand
 	if rem.oil ~= false and ns.get(GetInventoryItemID, "player", 16) ~= nil then

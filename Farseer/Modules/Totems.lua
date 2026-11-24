@@ -135,6 +135,13 @@ end
 ---------------------------------------------------------------------------------------------------
 local range = {}   -- [slot] = { name, start, seen, miss, out, warned }
 
+-- Solo utanför instanser med soloQuiet: inga räckvidds-/utgångsvarningar (markeringarna på baren finns kvar)
+local function soloQuiet()
+	local adv = ns.char and ns.char.advisor
+	return adv and adv.soloQuiet and not ns.Alert:InGroupOrInstance() or false
+end
+TO.SoloQuiet = soloQuiet
+
 -- Får auror läsas just nu? (spelet gör dem secret i strid)
 local function aurasReadable()
 	return not (C_Secrets and C_Secrets.ShouldAurasBeSecret and ns.get(C_Secrets.ShouldAurasBeSecret) ~= false)
@@ -207,10 +214,10 @@ function TO:CheckRange()
 							r.warned = true
 							local el = ns.Spellbook:TotemElement(s.name)
 							local call = ns.Spellbook:Knows(ns.TOTEMIC_CALL)
-							ns.Alert:Flash("range-" .. slot, call and ns.TOTEMIC_CALL or s.name, "OUT OF TOTEM RANGE",
+							if not soloQuiet() then ns.Alert:Flash("range-" .. slot, call and ns.TOTEMIC_CALL or s.name, "OUT OF TOTEM RANGE",
 								s.name .. " isn't reaching you. " .. (call and "Press Totemic Call (moves your totems to you) or move closer."
 									or "Move closer or recast it."),
-								el and ns.ELEMENT_COLOR[el] or { 1, 0.5, 0.2 }, 3)
+								el and ns.ELEMENT_COLOR[el] or { 1, 0.5, 0.2 }, 3) end
 							ns.fire("TOTEM_OUT_OF_RANGE", s.name, slot)
 						end
 					end
@@ -237,6 +244,8 @@ function TO:CheckExpiry(now)
 	local function eligible(slot, s)
 		if expWarned[slot] and math.abs(expWarned[slot] - s.start) < 1 then return false end
 		if cfg.expireLongOnly ~= false and s.dur < 60 then return false end
+		-- Totemet når dig inte ändå (OOR): ingen utgångsvarning för det
+		if range[slot] and range[slot].out then return false end
 		return true
 	end
 	local trigger = false
@@ -263,8 +272,10 @@ function TO:CheckExpiry(now)
 		or "Recast them before they run out"
 	if ns.Spellbook:Knows(ns.TOTEMIC_CALL) then hint = hint .. " (Totemic Call doesn't refresh the timer)" end
 	local el = ns.Spellbook:TotemElement(list[1].name)
-	ns.Alert:Flash("expire", list[1].name, title, table.concat(names, ", ") .. ". " .. hint .. ".",
-		el and ns.ELEMENT_COLOR[el] or { 1, 0.82, 0 }, 3)
+	if not soloQuiet() then
+		ns.Alert:Flash("expire", list[1].name, title, table.concat(names, ", ") .. ". " .. hint .. ".",
+			el and ns.ELEMENT_COLOR[el] or { 1, 0.82, 0 }, 3)
+	end
 	ns.fire("TOTEMS_EXPIRING", list)
 	return list
 end
@@ -511,8 +522,8 @@ function TO:BuildBar()
 	cb:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:SetText("Totemic Call")
-		GameTooltip:AddLine("Click: move your active totems to you. Glows when a totem is out of range or a party "
-			.. "member near you is missing a totem buff.", 1, 1, 1, true)
+		GameTooltip:AddLine("Click: move your active totems to you. Glows when one of your totems isn't reaching you.",
+			1, 1, 1, true)
 		GameTooltip:AddLine("Right-click: Totemic Recall (pick them up)", 0.6, 0.8, 1)
 		GameTooltip:Show()
 	end)
@@ -575,9 +586,10 @@ function TO:UpdateRangeMarks()
 		b.range:SetShown(out)
 		b.rangeText:SetText(out and "OOR" or "")
 	end
-	-- Totemic Call lyser när ett totem inte når dig eller någon i gruppen (inom räckhåll) saknar en buff
+	-- Totemic Call lyser bara när ett totem inte når dig. Gruppens täckning tänder den inte: UnitInRange
+	-- (~40 m) är längre än totemens räckvidd (20-30 m) och Totemic Call hjälper inte någon långt bort.
 	if self.callButton then
-		if self:AnyOutOfRange() or coverageCount > 0 then self.callButton.glow:On() else self.callButton.glow:Off() end
+		if self:AnyOutOfRange() then self.callButton.glow:On() else self.callButton.glow:Off() end
 	end
 end
 

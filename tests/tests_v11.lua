@@ -196,7 +196,7 @@ test("totems: dog i förtid / Grounding åt en spell", function()
 	MOCK.totems[4] = nil
 	MOCK.fire("PLAYER_TOTEM_UPDATE", 4)
 	MOCK.runTimers()
-	check(ns.Alert:Current() == nil, "varningen har gått ut efter sin tid (timers kördes)")
+	check(ns.Alert:Current() == nil, "varningen har gått ut efter sin tid (timers kördes): " .. tostring(ns.Alert:Current()))
 	-- kör igen utan att låta flash-timern gå
 	cast("Grounding Totem")
 	MOCK.time = MOCK.time + 5

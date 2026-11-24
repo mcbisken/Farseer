@@ -38,14 +38,21 @@ local PROCS = {
 PC.PROCS = PROCS
 
 -- Nedräkning efter egna casts. buff = läs tiden ur buffen på dig när den går att läsa.
+-- totem = startas/stoppas också av totemspårningen (TOTEMS_CHANGED) när castens ID är secret
 local CD_TIMERS = {
-	["Mana Tide Totem"] = { key = "manatide", spell = "Mana Tide Totem", dur = 12, msg = "Mana Tide Totem up (12 s)" },
+	["Mana Tide Totem"] = { key = "manatide", spell = "Mana Tide Totem", dur = 12, totem = true,
+		msg = "Mana Tide Totem up (12 s)" },
 	["Rage of the Farseer"] = { key = "farseer", spell = "Rage of the Farseer", dur = 15, buff = true,
 		msg = "Rage of the Farseer up" },
 }
 PC.CD_TIMERS = CD_TIMERS
 
 local BREATH_WARN = 20   -- varna när så här många sekunder luft är kvar
+local BREATH_ASSUME = 60 -- luft att anta när varken kvarvarande eller max går att läsa (secret)
+local RESERVE = 10       -- sekunder en ikon som just doldes behåller sin plats (ingen hoppande rad)
+local SS_WINDOW = 12     -- Stormstrike: debuffen (2 laddningar) håller 12 s efter din cast
+local SS_GRACE = 1       -- debuffen syns inte direkt efter casten: en läsning som säger "saknas" väntar så länge
+local ssCast             -- GetTime() för din senaste lyckade Stormstrike (nil = ingen aktiv)
 local WB_LOW = 60        -- Water Breathing: varna när mindre än så här är kvar (simmar, utanför strid)
 
 local function cfg() return ns.char.procs end
@@ -195,13 +202,21 @@ function PC:Layout()
 	ns.placeFrame(frame, c)
 	local size = c.size or 36
 	local x = 0
+	local now = GetTime()
+	self.relayoutAt = nil
 	for _, key in ipairs(ORDER) do
 		local f = icons[key]
 		f:SetSize(size, size)
 		f:ClearAllPoints()
-		if f:IsShown() then
+		-- En ikon som doldes nyss behåller sin plats en stund, så de andra inte hoppar när t.ex. Flurry blinkar
+		local keep = not f:IsShown() and f.hiddenAt and now - f.hiddenAt < RESERVE
+		if f:IsShown() or keep then
 			f:SetPoint("TOPLEFT", frame, "TOPLEFT", x, 0)
 			x = x + size + 4
+		end
+		if keep then
+			local at = f.hiddenAt + RESERVE
+			if not self.relayoutAt or at < self.relayoutAt then self.relayoutAt = at end
 		end
 	end
 	local width = math.max(200, x - 4)
@@ -218,7 +233,17 @@ end
 
 local function setShown(f, show)
 	if f:IsShown() ~= (show and true or false) then
+		f.hiddenAt = (not show) and GetTime() or nil
 		f:SetShown(show)
+		PC.dirty = true
+	end
+end
+
+-- Dold för att funktionen är avstängd: ingen reserverad plats
+local function setOff(f)
+	setShown(f, false)
+	if f.hiddenAt then
+		f.hiddenAt = nil
 		PC.dirty = true
 	end
 end
@@ -269,14 +294,213 @@ function PC:MaelstromIcon(a)
 	return MW_ICON
 end
 
+---------------------------------------------------------------------------------------------------
+-- Maelstrom via Blizzards aura-container (som ShamanForever gör): i strid är stackarna secret, så vi
+-- läser inte buffen alls. Containern får buffens ID och spelets egen kod ritar ikonen, tiden, antalet,
+-- en stackbar och en markering vid 5 (en statusbar som bara fylls vid max). Byggs en gång, utanför strid
+-- och när auror går att läsa. Går det inte (äldre klient) används den gamla vägen.
+---------------------------------------------------------------------------------------------------
+local mwBox            -- nil = inte försökt, false = gick inte, annars { container, button, ... }
+local MW_GOLD = "|cffffd100"
+
+local function noMouse(b)
+	pcall(b.EnableMouse, b, false)
+	pcall(b.SetMouseClickEnabled, b, false)
+	pcall(b.SetMouseMotionEnabled, b, false)
+end
+
+-- Talet: inget vid 0, 1-4 vita, 5 i guld. Prövas på 0..max först (ett fel i formattern stoppar spelets
+-- auror). nil = spelets eget tal (som börjar på 2).
+local function countFormatter(max)
+	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
+	local ok, fm = pcall(function()
+		local x = C_StringUtil.CreateNumericRuleFormatter()
+		x:SetBreakpoints({
+			{ threshold = 0, format = "" },
+			{ threshold = 1, format = "%d" },
+			{ threshold = max, format = MW_GOLD .. "%d|r" },
+		})
+		for n = 0, max do
+			local t = x:FormatNumber(n)
+			if type(t) ~= "string" or ns.isSecret(t) or (n == 0 and t ~= "") then error("format " .. n) end
+		end
+		return x
+	end)
+	return ok and fm or nil
+end
+
+local function immediate()
+	return Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
+end
+
+-- Spelets knapp i containern: våra delar läggs på den, spelet sätter värdena
+local function initMaelstromButton(box, button)
+	local f = icons.maelstrom
+	local size = f:GetWidth()
+	if type(size) ~= "number" or size <= 0 then size = ns.char.bars.procs.size or 36 end
+	local max = ns.MAELSTROM_MAX or 5
+	button:SetSize(size, size)
+	button:ClearAllPoints()
+	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	noMouse(button)
+	local tex = button:CreateTexture(nil, "ARTWORK")
+	tex:SetAllPoints()
+	tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	tex:SetTexture(MW_ICON)
+	pcall(button.SetIcon, button, tex)
+	box.icon = tex
+	-- Tid kvar på buffen (30 s): svep utan siffror
+	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+	cd:SetAllPoints()
+	pcall(cd.SetHideCountdownNumbers, cd, true)
+	pcall(cd.SetDrawEdge, cd, false)
+	if not pcall(button.SetDurationCooldown, button, cd) then cd:Hide() end
+	box.cd = cd
+	-- Markering vid 5: fylls bara när stackarna når max (min = max), annars tom
+	local full = CreateFrame("StatusBar", nil, button)
+	full:SetPoint("CENTER", button, "CENTER")
+	full:SetSize(size * 1.7, size * 1.7)
+	full:SetStatusBarTexture("Interface\\Buttons\\UI-ActionButton-Border")
+	local ft = full:GetStatusBarTexture()
+	if type(ft) == "table" and ft.SetBlendMode then pcall(ft.SetBlendMode, ft, "ADD") end
+	full:SetStatusBarColor(1, 0.82, 0.2, 1)
+	full:SetFrameLevel(button:GetFrameLevel() + 2)
+	if not pcall(button.SetApplicationBar, button, full,
+		{ minApplications = max, maxApplications = max, interpolation = immediate() }) then
+		full:Hide()
+		full = nil
+	end
+	box.full = full
+	-- Stackbar längst ned (en ruta per stack)
+	local bar = CreateFrame("StatusBar", nil, button)
+	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 2, 2)
+	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
+	bar:SetHeight(math.max(3, math.floor(size / 8)))
+	bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+	bar:SetStatusBarColor(0.52, 0.69, 1, 1)
+	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
+	bar.bg:SetAllPoints()
+	bar.bg:SetColorTexture(0, 0, 0, 0.6)
+	bar:SetFrameLevel(button:GetFrameLevel() + 3)
+	if not pcall(button.SetApplicationBar, button, bar, { minApplications = 0, maxApplications = max }) then
+		bar:Hide()
+		bar = nil
+	end
+	box.bar = bar
+	-- Talet (spelet skriver det)
+	local num = CreateFrame("Frame", nil, button)
+	num:SetAllPoints(button)
+	num:SetFrameLevel(button:GetFrameLevel() + 4)
+	local fs = num:CreateFontString(nil, "OVERLAY", "NumberFontNormalLarge")
+	fs:SetPoint("CENTER", 0, 1)
+	local fm = countFormatter(max)
+	if not pcall(button.SetApplicationCount, button, fs, fm and { formatter = fm } or nil) then
+		pcall(button.SetApplicationCount, button, fs)
+	end
+	box.fs = fs
+	box.button = button
+	PC.dirty = true
+end
+
+-- Bygg containern (en gång). Returnerar boxen, false om klienten inte har den, eller nil (vänta).
+function PC:SetupMaelstromBox()
+	if mwBox ~= nil then return mwBox end
+	if not frame or InCombatLockdown() or aurasSecret() then return nil end
+	if not (cfg().maelstrom and ns.Spellbook:Knows("Maelstrom Weapon")) then return nil end
+	local ids = {}
+	for _, id in ipairs(ns.MAELSTROM_BUFF or {}) do ids[id] = true end
+	local box = {}
+	local ok, err = pcall(function()
+		local f = icons.maelstrom
+		-- Föräldern är procs-rutan (inte ikonen, som döljs och visas i strid); ikonen står alltid först
+		local c = CreateFrame("AuraContainer", nil, frame, "CustomAuraContainerTemplate")
+		box.container = c
+		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+		c:SetSize(f:GetWidth(), f:GetHeight())
+		c:SetFrameStrata(frame:GetFrameStrata())
+		c:SetFrameLevel(f:GetFrameLevel() + 5)
+		c:SetUnit("player")
+		noMouse(c)
+		c:AddAuraSlot("maelstrom", "HELPFUL", {
+			candidateFilters = { includeSpellIDs = ids },
+			initializeFrame = function(button)
+				local ok2, e2 = pcall(initMaelstromButton, box, button)
+				if not ok2 then ns.report("Maelstrom container button: " .. tostring(e2)) end
+			end,
+		})
+	end)
+	if not ok then
+		if box.container then pcall(box.container.Hide, box.container) end
+		mwBox = false
+		PC.mwBoxError = tostring(err)
+		return false
+	end
+	mwBox = box
+	return box
+end
+
+-- Släng containern (tester och /farseer debug): byggs om nästa gång utanför strid
+function PC:ResetMaelstromBox()
+	if InCombatLockdown() then return false end
+	if mwBox and mwBox.container then pcall(mwBox.container.Hide, mwBox.container) end
+	mwBox = nil
+	PC.mwBoxError = nil
+	return true
+end
+
+-- Containern ritar Maelstrom (spelet har gett den en knapp)
+function PC:MaelstromBox() return mwBox and mwBox.button and mwBox or nil end
+function PC:MaelstromBoxState()
+	if mwBox == nil then return "not built" end
+	if mwBox == false then return "unavailable: " .. tostring(PC.mwBoxError) end
+	return mwBox.button and "active" or "waiting for the buff"
+end
+
+-- Storlek och synlighet: bara utanför strid (containerns knapp är spelets)
+function PC:StyleMaelstromBox()
+	local box = mwBox
+	if not box or InCombatLockdown() then return end
+	local f = icons.maelstrom
+	local on = cfg().maelstrom and ns.Spellbook:Knows("Maelstrom Weapon")
+	pcall(box.container.SetShown, box.container, on and true or false)
+	local size = f:GetWidth()
+	if type(size) ~= "number" or size <= 0 then return end
+	pcall(box.container.SetSize, box.container, size, size)
+	local b = box.button
+	if b then
+		pcall(b.SetSize, b, size, size)
+		if box.full then pcall(box.full.SetSize, box.full, size * 1.7, size * 1.7) end
+		if box.bar then pcall(box.bar.SetHeight, box.bar, math.max(3, math.floor(size / 8))) end
+	end
+end
+
 function PC:UpdateMaelstrom()
 	local f = icons.maelstrom
-	if not (cfg().maelstrom and ns.Spellbook:Knows("Maelstrom Weapon")) then setShown(f, false) return end
+	if not (cfg().maelstrom and ns.Spellbook:Knows("Maelstrom Weapon")) then setOff(f) return end
 	local n, raw, aura = self:Maelstrom()
 	local max = ns.MAELSTROM_MAX or 5
 	-- Buffens ikon kan vara secret i strid: SetTexture tar emot den ändå, annars filen
 	if not pcall(f.icon.SetTexture, f.icon, self:MaelstromIcon(aura)) then f.icon:SetTexture(MW_ICON) end
 	setShown(f, InCombatLockdown() or (n ~= 0))
+	local box = self:MaelstromBox()
+	if box then
+		-- Spelet ritar buffen, talet och markeringen ovanpå: vår ikon är en svag platshållare under
+		f.icon:SetDesaturated(true)
+		f.icon:SetAlpha(0.35)
+		f.count:SetText("")
+		f.sensor:Hide()
+		f.glow:Off()
+		-- Ljudet går bara när antalet går att läsa (utanför strid / om spelet visar det)
+		if n then
+			if n >= max and (mwLast or 0) < max and cfg().maelstromSound then
+				pcall(PlaySound, SOUNDKIT and SOUNDKIT.ALARM_CLOCK_WARNING_3 or 12889, "Master")
+			end
+			mwLast = n
+		end
+		return
+	end
+	f.icon:SetAlpha(1)
+	f.sensor:Show()
 	showCount(f.count, n, raw)
 	pcall(f.sensor.SetValue, f.sensor, n or raw or 0)
 	if n then
@@ -320,43 +544,105 @@ function PC:ProcIcon(def, a)
 	return def.file
 end
 
+-- Markör: auran går inte att läsa just nu (secret eller blockerat uppslag)
+local UNKNOWN = setmetatable({}, { __tostring = function() return "<unknown>" end })
+PC.UNKNOWN = UNKNOWN
+
 -- Classic: Stormstrike är en debuff på target (+20 % Nature-skada). Leta efter din egen debuff med namnet.
+-- Returnerar auran, nil (läsbart: finns inte) eller UNKNOWN (secret/blockerat). Direkt pcall: ns.get gör
+-- ett secret-värde till nil, och då går det inte att skilja "saknas" från "okänt".
 local function targetDebuff(name)
 	local U = C_UnitAuras
-	if not (U and U.GetAuraDataByIndex) then return nil end
+	if not (U and U.GetAuraDataByIndex) then return UNKNOWN end
 	local want = ns.L(name)
+	local unknown = false
 	for i = 1, 40 do
-		local a = ns.get(U.GetAuraDataByIndex, "target", i, "HARMFUL|PLAYER")
-		if a == nil then return nil end
-		if ns.isSecret(a) then return nil end
-		local n = ns.field(a, "name")
-		if n == want then return a end
+		local ok, a = pcall(U.GetAuraDataByIndex, "target", i, "HARMFUL|PLAYER")
+		if not ok or ns.isSecret(a) then return UNKNOWN end
+		if a == nil then break end
+		if type(a) ~= "table" then
+			unknown = true
+		else
+			local okn, n = pcall(function() return a.name end)
+			if not okn or ns.isSecret(n) then
+				unknown = true
+			elseif n == want then
+				return a
+			end
+		end
 	end
+	if unknown then return UNKNOWN end
+	return nil
 end
 PC.TargetDebuff = targetDebuff
 
-function PC:UpdateProc(def)
-	local f = icons[def.key]
-	if not cfg()[def.cfg] or (def.requires and not ns.Spellbook:Knows(def.requires)) then
-		procInstance[def.key] = nil
-		setShown(f, false)
-		return
-	end
-	-- Att auran finns går att se även när den är secret (uppslaget ger ett secret-värde, inte nil)
-	local a = playerAura(def.ids, def.name, procInstance[def.key])
-	if a == nil and def.target then a = targetDebuff(def.name) end
-	if a == nil then
-		procInstance[def.key] = nil
-		setShown(f, false)
-		return
-	end
-	procInstance[def.key] = instanceOf(a) or procInstance[def.key]
+local function showProc(self, def, f, a)
 	if not pcall(f.icon.SetTexture, f.icon, self:ProcIcon(def, a)) then f.icon:SetTexture(def.file) end
 	local n, raw = applications(a)
 	-- En laddning (eller ingen) = ingen siffra
 	if n and n <= 1 then n = 0 end
 	showCount(f.count, n, raw)
 	setShown(f, true)
+end
+
+function PC:UpdateProc(def)
+	local f = icons[def.key]
+	if not cfg()[def.cfg] or (def.requires and not ns.Spellbook:Knows(def.requires)) then
+		procInstance[def.key] = nil
+		setOff(f)
+		return
+	end
+	-- Att auran finns går att se även när den är secret (uppslaget ger ett secret-värde, inte nil)
+	local a = playerAura(def.ids, def.name, procInstance[def.key])
+	if a ~= nil then
+		procInstance[def.key] = instanceOf(a) or procInstance[def.key]
+		showProc(self, def, f, a)
+		return
+	end
+	procInstance[def.key] = nil
+	if not def.target then setShown(f, false) return end
+	-- Debuffen på target. Dess auraInstanceID sparas inte: playerAura slår upp den på "player" (fel enhet).
+	local t = targetDebuff(def.name)
+	local now = GetTime()
+	if t == UNKNOWN then
+		-- Okänt: din egen cast avgör; annars behåll det som visas (som purge)
+		if ssCast and now - ssCast < SS_WINDOW then showProc(self, def, f, nil) return end
+		if ssCast then
+			ssCast = nil   -- 12 s har gått: debuffen är borta
+			setShown(f, false)
+		end
+		return
+	end
+	if t == nil then
+		-- Läsbart och saknas: göm, utom precis efter casten (debuffen har inte hunnit komma)
+		if ssCast and now - ssCast < SS_GRACE then showProc(self, def, f, nil) return end
+		ssCast = nil
+		setShown(f, false)
+		return
+	end
+	showProc(self, def, f, t)
+end
+
+-- Din Stormstrike lyckades: visa ikonen i 12 s om inte en läsbar aura säger något annat
+local function isStormstrike(spellID, name)
+	if name == "Stormstrike" then return true end
+	if spellID == ns.Spellbook:ID("Stormstrike") then return true end
+	for _, id in ipairs((ns.SPELL_IDS and ns.SPELL_IDS["Stormstrike"]) or {}) do
+		if id == spellID then return true end
+	end
+	return false
+end
+
+function PC:StormstrikeCast()
+	ssCast = GetTime()
+	for _, def in ipairs(PROCS) do
+		if def.key == "stormstrike" and frame then self:UpdateProc(def) end
+	end
+end
+
+function PC:StormstrikeLeft()
+	if not ssCast then return nil end
+	return math.max(0, ssCast + SS_WINDOW - GetTime())
 end
 
 function PC:UpdateProcs()
@@ -382,6 +668,8 @@ end
 function PC:Announce(msg)
 	local channel = groupChannel()
 	if not channel then return false end
+	-- Under en bossfight kan chatten vara skyddad: hoppa över (pcall nedan tar resten)
+	if IsEncounterInProgress and ns.get(IsEncounterInProgress) == true then return false end
 	-- Den globala SendChatMessage är på väg bort i nya klienter
 	local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
 	if not send then return false end
@@ -400,22 +688,58 @@ local function buffEnds(def)
 	return nil
 end
 
-function PC:OnPlayerCast(spellID)
-	if type(spellID) ~= "number" or ns.isSecret(spellID) then return end
-	local name = ns.canon(ns.get(C_Spell.GetSpellName, spellID))
-	local def = name and CD_TIMERS[name]
-	if not def or not cfg().cdTimers then return end
-	local now = GetTime()
-	local cur = cdActive[def.key]
-	if cur and now - cur.at < 1 then return end   -- samma cast två gånger
-	cdActive[def.key] = { ends = (def.buff and buffEnds(def)) or (now + def.dur), def = def, at = now }
+local function startTimer(def, ends, now)
+	local c = { ends = ends, def = def, at = now }
+	cdActive[def.key] = c
 	local f = icons[def.key]
 	if f then
 		f.icon:SetTexture(ns.spellIcon(def.spell))
 		setShown(f, true)
 	end
-	self:UpdateTimers(now)
-	if cfg().announce then self:Announce(def.msg) end
+	PC:UpdateTimers(now)
+	if cfg().announce then PC:Announce(def.msg) end
+	return c
+end
+
+function PC:OnPlayerCast(spellID)
+	if type(spellID) ~= "number" or ns.isSecret(spellID) then return end
+	local name = ns.canon(ns.get(C_Spell.GetSpellName, spellID))
+	if isStormstrike(spellID, name) then self:StormstrikeCast() return end
+	local def = name and CD_TIMERS[name]
+	if not def or not cfg().cdTimers then return end
+	local now = GetTime()
+	local cur = cdActive[def.key]
+	if cur and now - cur.at < 1 then return end   -- samma cast två gånger (eller totemet hann före)
+	startTimer(def, (def.buff and buffEnds(def)) or (now + def.dur), now)
+end
+
+-- Andra vägen för totems: castens ID kan vara secret i strid, men totemspårningen ser totemet.
+-- Startar timern när totemet dyker upp (utan timer igång) och stoppar den när totemet försvinner
+-- (dödat, Totemic Call). seen = totemet har synts under den här timern, så en färsk timer från casten
+-- inte stoppas innan totemspårningen hunnit se totemet.
+function PC:OnTotemsChanged()
+	local TO = ns.Totems
+	if not (TO and TO.Active) then return end
+	local now = GetTime()
+	for _, def in pairs(CD_TIMERS) do
+		if def.totem then
+			local slot = TO:Active(def.spell)
+			local c = cdActive[def.key]
+			if slot then
+				if c then
+					c.seen = true
+				elseif cfg().cdTimers then
+					-- Totemets egen starttid (via tid kvar) om den finns, annars hela tiden
+					local left = TO.Remaining and TO:Remaining(slot)
+					local ends = (type(left) == "number" and left > 0) and (now + math.min(left, def.dur)) or (now + def.dur)
+					startTimer(def, ends, now).seen = true
+				end
+			elseif c and c.seen then
+				cdActive[def.key] = nil
+				self:UpdateTimers(now)
+			end
+		end
+	end
 end
 
 -- Sekunder kvar på timern (nil = inte aktiv)
@@ -480,11 +804,11 @@ end
 function PC:BreathWarning()
 	if not cfg().breath then return end
 	local spell, text = self:BreathAdvice()
-	ns.Alert:Flash("breath", spell or "Water Breathing", "BREATH RUNNING OUT", text, { 0.3, 0.7, 1 }, 4)
+	ns.Alert:Flash("breath", spell or "Water Breathing", "BREATH RUNNING OUT", text, { 0.3, 0.7, 1 }, 4, "critical")
 end
 
 -- MIRROR_TIMER_START: timer, value (ms kvar), maxvalue, scale (-1 = minskar), paused, label
-function PC:OnMirrorStart(timer, value, _, scale, paused)
+function PC:OnMirrorStart(timer, value, maxValue, scale, paused)
 	if ns.clean(timer) ~= "BREATH" then return end
 	breath.token = breath.token + 1
 	if not cfg().breath then return end
@@ -493,8 +817,13 @@ function PC:OnMirrorStart(timer, value, _, scale, paused)
 	if type(scale) == "number" and scale > 0 then return end   -- fylls på: du är uppe
 	local v = ns.clean(value)
 	local left = type(v) == "number" and v / 1000 or nil
+	if not left then
+		-- Okänt hur mycket luft som är kvar: varna inte direkt, anta full luft (max om det går att läsa)
+		local mx = ns.clean(maxValue)
+		left = (type(mx) == "number" and mx > 0) and mx / 1000 or BREATH_ASSUME
+	end
 	local tok = breath.token
-	breath.scheduled = left and math.max(0, left - BREATH_WARN) or 0
+	breath.scheduled = math.max(0, left - BREATH_WARN)
 	C_Timer.After(breath.scheduled, function()
 		if breath.token ~= tok then return end   -- timern stoppades eller startades om
 		-- Fortfarande gott om luft (t.ex. pausad en stund): vänta lite till
@@ -533,7 +862,7 @@ function PC:CheckWaterBreathing()
 	if r and type(n) == "number" and n <= 0 and not (ns.Leveling and ns.Leveling.ReagentFree and ns.Leveling:ReagentFree()) then
 		text = string.format("%d s left and no %s — head for the surface.", math.ceil(left), r.name)
 	end
-	ns.Alert:Flash("waterbreathing", "Water Breathing", "WATER BREATHING ENDING", text, { 0.3, 0.7, 1 }, 4)
+	ns.Alert:Flash("waterbreathing", "Water Breathing", "WATER BREATHING ENDING", text, { 0.3, 0.7, 1 }, 4, "info")
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -677,7 +1006,7 @@ function PC:CheckMana()
 		manaArmed = false
 		local spell, text = self:ManaAdvice()
 		ns.Alert:Flash("lowmana", spell or "Mana Spring Totem", string.format("LOW MANA (%d %%)", math.floor(pct)), text,
-			{ 0.3, 0.55, 1 }, 4)
+			{ 0.3, 0.55, 1 }, 4, "advice")
 	end
 end
 
@@ -729,7 +1058,7 @@ function PC:UpdatePurge()
 		if not purgeWarned[key] then
 			purgeWarned[key] = true
 			ns.Alert:Flash("purge", "Purge", "PURGE: " .. tostring(list[1].name or "buff"):upper(),
-				"Target has " .. #list .. " buff(s) that Purge removes.", { 0.75, 0.45, 1 }, 2.5)
+				"Target has " .. #list .. " buff(s) that Purge removes.", { 0.75, 0.45, 1 }, 2.5, "info")
 		end
 	end
 end
@@ -758,10 +1087,17 @@ function PC:OnUnitCast(event, unit)
 		local c = self:ReadCast(unit) or { start = GetTime(), channel = event == "UNIT_SPELLCAST_CHANNEL_START" }
 		c.unit = unit
 		casts[unit] = c
-		if cfg().enemyCastAlertPvp and ns.Bars:Mode() == "PVP" and c.notInt ~= true then
-			local kick = ns.Spellbook:Knows("Earth Shock") and "Earth Shock" or "Grounding Totem"
-			ns.Alert:Flash("cast-" .. unit, kick, "KICK! " .. (c.name and c.name:upper() or (UNIT_LABEL[unit]:upper() .. " CASTING")),
-				"Earth Shock interrupts. Grounding Totem absorbs a spell aimed at you.", { 1, 0.35, 0.2 }, 1.5)
+		if cfg().enemyCastAlertPvp and ns.Bars:Mode() == "PVP" then
+			-- Earth Shock bara om den är redo och casten går att avbryta, annars Grounding Totem om den är
+			-- redo, annars ingen varning (inget att trycka på)
+			local what = c.name and c.name:upper() or (UNIT_LABEL[unit]:upper() .. " CASTING")
+			if c.notInt ~= true and ready("Earth Shock") then
+				ns.Alert:Flash("cast-" .. unit, "Earth Shock", "KICK! " .. what, "Earth Shock interrupts the cast.",
+					{ 1, 0.35, 0.2 }, 1.5, "critical")
+			elseif ready("Grounding Totem") then
+				ns.Alert:Flash("cast-" .. unit, "Grounding Totem", "GROUND IT! " .. what,
+					"Grounding Totem absorbs a spell aimed at you.", { 1, 0.35, 0.2 }, 1.5, "critical")
+			end
 		end
 	elseif event == "UNIT_SPELLCAST_NOT_INTERRUPTIBLE" then
 		if casts[unit] then casts[unit].notInt = true end
@@ -900,6 +1236,7 @@ function PC:UpdateFast()
 	if not frame or not frame:IsShown() then return end
 	local now = GetTime()
 	updateWindfuryText(now)
+	if self.relayoutAt and now >= self.relayoutAt then self.dirty = true end   -- en reserverad plats har gått ut
 	self:UpdateTimers(now)
 	self:UpdateCast(now)
 	self:UpdateDR()
@@ -925,7 +1262,12 @@ function PC:SetShown(show)
 	self:Layout()
 end
 
-function PC:Refresh() self:Layout(); self:Update() end
+function PC:Refresh()
+	self:Layout()
+	self:SetupMaelstromBox()
+	self:StyleMaelstromBox()
+	self:Update()
+end
 
 local castFrame = CreateFrame("Frame")
 castFrame:SetScript("OnEvent", function(_, event, unit)
@@ -954,6 +1296,11 @@ function PC:OnShamanLogin()
 	ns.on("MIRROR_TIMER_STOP", function(_, timer) PC:OnMirrorStop(timer) end)
 	ns.on("PLAYER_TARGET_CHANGED", function()
 		casts.target = nil
+		-- Stormstrike-debuffen sitter på det gamla targetet
+		if ssCast then
+			ssCast = nil
+			if icons.stormstrike then setShown(icons.stormstrike, false) end
+		end
 		local c = hostile("target") and PC:ReadCast("target")
 		if c then c.unit = "target"; casts.target = c end
 	end)
@@ -961,9 +1308,17 @@ function PC:OnShamanLogin()
 	ns.on("SPELL_UPDATE_COOLDOWN", function(_, id) PC:OnCooldownEvent(id) end)
 	ns.on("UNIT_SPELL_DIMINISH_CATEGORY_STATE_UPDATED", function(_, unit, info) PC:OnDiminish(unit, info) end)
 	ns.listen("COMBAT_START", function() wf.count = 0 end)
-	ns.listen("COMBAT_END", function() wipe(purgeWarned); manaArmed = true end)
+	ns.listen("COMBAT_END", function()
+		wipe(purgeWarned); manaArmed = true
+		PC:SetupMaelstromBox()
+		PC:StyleMaelstromBox()
+	end)
+	ns.on("SPELLS_CHANGED", function()
+		if not InCombatLockdown() then PC:SetupMaelstromBox(); PC:StyleMaelstromBox() end
+	end)
 	ns.listen("BARS_LAYOUT", function() PC:Layout() end)
 	ns.listen("PROCS_CHANGED", function() PC:Refresh() end)
+	ns.listen("TOTEMS_CHANGED", function() PC:OnTotemsChanged() end)
 	ns.listen("SPELLS_CHANGED", function() PC:Refresh() end)
 	C_Timer.NewTicker(0.5, function()
 		local ok, err = pcall(PC.CheckMana, PC)

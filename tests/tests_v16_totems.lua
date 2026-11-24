@@ -23,6 +23,7 @@ end
 test("totems: varning innan de går ut", function()
 	local ta = ns.char.totemAlerts
 	ta.expire, ta.expireSec, ta.expireLongOnly = true, 20, true
+	ns.char.advisor.soloQuiet = false   -- v1.7: solo utanför instanser är utgångsvarningen tyst som standard
 	clearTotems()
 	local fired
 	ns.listen("TOTEMS_EXPIRING", function(list) fired = list end)
@@ -75,6 +76,7 @@ test("totems: varning innan de går ut", function()
 	check(ns.Totems:CheckExpiry() ~= nil, "på igen: varnar")
 	MOCK.runTimers()
 	clearTotems()
+	ns.char.advisor.soloQuiet = true
 end)
 
 ---------------------------------------------------------------------------------------------------
@@ -104,7 +106,8 @@ test("totems: gruppens buffar", function()
 		"Alice saknar buffen (Faraway utom räckhåll, Ghost död)")
 	ns.Totems:UpdateCoverage()
 	check(cover:IsShown() and cover.text:GetText() == "1 missing buff", "text under baren: " .. tostring(cover.text:GetText()))
-	check(not ns.Totems:AnyOutOfRange() and cb.glow:IsShown(), "Totemic Call lyser")
+	-- v1.7: täckningen tänder inte Totemic Call (UnitInRange ~40 m > totemens räckvidd)
+	check(not ns.Totems:AnyOutOfRange() and not cb.glow:IsShown(), "Totemic Call lyser inte av täckningen")
 	-- Tooltip
 	local lines = {}
 	rawset(GameTooltip, "AddLine", function(_, t) table.insert(lines, t) end)
@@ -134,7 +137,7 @@ test("totems: gruppens buffar", function()
 	C_Secrets.ShouldAurasBeSecret = orig
 	-- Strid: körs inte, texten och glöden försvinner
 	ns.Totems:UpdateCoverage()
-	check(cb.glow:IsShown(), "lyser före strid")
+	check(cover:IsShown() and not cb.glow:IsShown(), "texten syns före strid, ingen glöd")
 	MOCK.combat = true
 	check(ns.Totems:PartyCoverage() == nil, "i strid: körs inte")
 	ns.fire("COMBAT_START")

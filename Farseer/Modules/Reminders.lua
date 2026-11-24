@@ -13,7 +13,55 @@ local WEAPON_LOC = { INVTYPE_WEAPON = true, INVTYPE_WEAPONOFFHAND = true, INVTYP
 
 local bar, shieldBtn, imbueBtn, offBtn
 local offActive = false   -- off-hand-knappen visas (sätts utanför strid i ApplySpells)
+local prevOffActive, prevOffId   -- förra ApplySpells: upptäcker vapenbyte i off-hand (nil = första gången)
 local status = { shield = nil, imbue = nil, imbueLeft = nil, off = nil, offLeft = nil }
+
+-- Längsta imbue-tid som setts per hand ("main"/"off"): { secs, item }. Classic-imbues varar 5 min, så
+-- en fast gräns på 5 min skulle lysa direkt efter casten; gränsen blir i stället högst 30 % av maxtiden.
+local SLOT_OF = { main = 16, off = 17 }
+local function seenStore()
+	local rem = ns.char and ns.char.reminders
+	if type(rem) ~= "table" then return nil end
+	if type(rem.imbueMaxSeen) ~= "table" then rem.imbueMaxSeen = {} end
+	return rem.imbueMaxSeen
+end
+
+local function slotItem(hand) return ns.get(GetInventoryItemID, "player", SLOT_OF[hand]) end
+
+local function recordSeen(hand, secs)
+	if type(secs) ~= "number" or secs <= 0 then return end
+	local s = seenStore()
+	if not s then return end
+	local item, e = slotItem(hand), s[hand]
+	-- annat vapen än när tiden sparades: börja om
+	if type(e) ~= "table" or (item ~= nil and e.item ~= nil and e.item ~= item) then e = {}; s[hand] = e end
+	if item ~= nil then e.item = item end
+	if type(e.secs) ~= "number" or secs > e.secs then e.secs = secs end
+end
+
+local function maxSeen(hand)
+	local s = seenStore()
+	local e = s and s[hand]
+	if type(e) ~= "table" or type(e.secs) ~= "number" then return nil end
+	local item = slotItem(hand)
+	if item ~= nil and e.item ~= nil and e.item ~= item then return nil end
+	return e.secs
+end
+
+-- Glömmer läget för en hand (vapenbyte): status och längsta sedda tid
+local function resetHand(hand)
+	if hand == "off" then status.off, status.offLeft = nil, nil else status.imbue, status.imbueLeft = nil, nil end
+	local s = seenStore()
+	if s then s[hand] = nil end
+end
+
+-- Varningsgräns i sekunder för en hand: min(base, 30 % av längsta sedda tiden), base om den är okänd
+function RE:ImbueThreshold(hand, base)
+	local m = maxSeen(hand)
+	if m then return math.min(base, m * 0.3) end
+	return base
+end
+function RE:ImbueMaxSeen(hand) return maxSeen(hand) end
 
 -- true/false = har/har inte, nil = går inte att läsa just nu
 local function hasAura(name)
@@ -54,15 +102,34 @@ local function readImbue(slot, offset)
 		local r = { ns.getAll(GetWeaponEnchantInfo) }
 		local has, exp = r[offset + 2], r[offset + 3]
 		if r[1] and has ~= nil then
-			return has and true or false, type(exp) == "number" and exp / 1000 or nil
+			if not has then return false end
+			-- Det gamla API:t säger bara "temporär förtrollning": en olja/slipsten räknas inte som imbue.
+			-- Olja på vapnet utan imbue-rad i tooltipen = okänt; med imbue-rad är tiden kanske oljans.
+			local LV = ns.Leveling
+			if LV and LV.WeaponTemp then
+				local oil, _, imbueLine = LV:WeaponTemp(offset == 4 and 17 or 16)
+				if oil then
+					if imbueLine ~= true then return nil end
+					return true, nil
+				end
+			end
+			return true, type(exp) == "number" and exp / 1000 or nil
 		end
 	end
 	return nil
 end
 
 -- returnerar har (bool/nil), sekunder kvar (eller nil)
-function RE:Imbue() return readImbue(MAIN_HAND, 0) end
-function RE:OffhandImbue() return readImbue(OFF_HAND, 4) end
+function RE:Imbue()
+	local has, left = readImbue(MAIN_HAND, 0)
+	if has then recordSeen("main", left) end
+	return has, left
+end
+function RE:OffhandImbue()
+	local has, left = readImbue(OFF_HAND, 4)
+	if has then recordSeen("off", left) end
+	return has, left
+end
 
 -- true = vapen i off-hand, false = inget vapen (tomt, sköld, off-hand-föremål), nil = okänt
 function RE:OffhandWeapon()
@@ -183,6 +250,14 @@ function RE:ApplySpells()
 	-- Off-hand: bara med ett vapen i off-hand och påslagen påminnelse
 	local o = self:OffhandSpell()
 	offActive = o ~= nil and ns.char.reminders.offhand ~= false and self:OffhandWeapon() == true
+	-- Nytt off-hand-vapen eller knappen av/på: gammal status och maxtid gäller inte längre
+	local offId = ns.get(GetInventoryItemID, "player", 17)
+	if prevOffActive ~= nil and (offActive ~= prevOffActive
+			or (offId ~= nil and prevOffId ~= nil and offId ~= prevOffId)) then
+		resetHand("off")
+	end
+	prevOffActive = offActive
+	if offId ~= nil or not offActive then prevOffId = offId end
 	offBtn:SetAttribute("type", offActive and "macro" or nil)
 	offBtn:SetAttribute("macrotext", offActive and self:OffhandMacro(o) or nil)
 	offBtn.spell = offActive and o or nil
@@ -223,10 +298,15 @@ function RE:Check()
 	else
 		paint(shieldBtn, false)
 	end
-	if cfg.imbue and imbueBtn.spell and hasWeapon() then
+	local base = (cfg.imbueMinutes or 5) * 60
+	-- Main hand läses alltid (även med avstängd påminnelse): off-hand-knappen beror på den
+	local mainWeapon = hasWeapon()
+	if mainWeapon then
 		local has, left = self:Imbue()
 		if has ~= nil then status.imbue, status.imbueLeft = has, left end
-		local low = status.imbue and status.imbueLeft and status.imbueLeft < (cfg.imbueMinutes or 5) * 60
+	end
+	if cfg.imbue and imbueBtn.spell and mainWeapon then
+		local low = status.imbue and status.imbueLeft and status.imbueLeft < self:ImbueThreshold("main", base)
 		local why
 		if status.imbue == false then why = "No imbue on your weapon!"
 		elseif low then why = string.format("Imbue expires in %d min", math.ceil(status.imbueLeft / 60)) end
@@ -238,11 +318,16 @@ function RE:Check()
 	if cfg.offhand ~= false and offActive and offBtn.spell and self:OffhandWeapon() ~= false then
 		local has, left = self:OffhandImbue()
 		if has ~= nil then status.off, status.offLeft = has, left end
-		local low = status.off and status.offLeft and status.offLeft < (cfg.imbueMinutes or 5) * 60
+		local low = status.off and status.offLeft and status.offLeft < self:ImbueThreshold("off", base)
+		local need = status.off == false or low
 		local why
-		if status.off == false then why = "No imbue on your off-hand weapon!"
+		-- Main hand först: med dual wield-regler hamnar imbuen på main hand om den saknar imbue,
+		-- så off-hand-knappen lyser bara när main hand redan har en (även om /use 17 väljer off-hand)
+		if need and status.imbue ~= true then
+			why, need = "Imbue the main hand first.", false
+		elseif status.off == false then why = "No imbue on your off-hand weapon!"
 		elseif low then why = string.format("Off-hand imbue expires in %d min", math.ceil(status.offLeft / 60)) end
-		paint(offBtn, (status.off == false or low) and not dead, why)
+		paint(offBtn, need and not dead, why)
 	else
 		paint(offBtn, false)
 	end
@@ -272,6 +357,10 @@ function RE:OnShamanLogin()
 	-- Nytt vapen i main hand/off-hand: visa/dölj off-hand-knappen (väntar till efter strid vid behov)
 	ns.on("PLAYER_EQUIPMENT_CHANGED", function(_, slot)
 		slot = ns.clean(slot)
+		-- Bytt vapen: gammal status och maxtid gäller inte (okänd plats: bara statusen, maxtiden
+		-- skyddas av vapnets item-ID)
+		if slot == 16 then resetHand("main") elseif slot == 17 then resetHand("off")
+		elseif slot == nil then status.imbue, status.imbueLeft, status.off, status.offLeft = nil, nil, nil, nil end
 		if slot == nil or slot == 16 or slot == 17 then RE:Refresh() end
 	end)
 	ns.listen("BARS_LAYOUT", function()

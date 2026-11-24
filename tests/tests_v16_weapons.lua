@@ -111,7 +111,10 @@ test("off-hand: knappen visas och lyser", function()
 	check(b.why and b.why:find("off%-hand"), "varför: " .. tostring(b.why))
 	-- main hand påverkas inte
 	check(not _G.FarseerImbueButton.glow:IsShown(), "main hand har imbue -> ingen glöd där")
-	-- snart slut / gott om tid
+	-- snart slut / gott om tid (v1.7: gränsen är högst 30 % av längsta sedda tiden, så se en full
+	-- imbue först; annars räknas 2 min som hela tiden)
+	enchants(true, 3600000, true, 3600000)
+	RE:Check()
 	enchants(true, 3600000, true, 120000)
 	RE:Check()
 	check(b.glow:IsShown(), "off-hand < 5 min -> glöd")

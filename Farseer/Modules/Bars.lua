@@ -25,16 +25,45 @@ function BA:Mode() return ns.char.mode == "PVP" and "PVP" or "PVE" end
 function BA:List(mode) return ns.char.situations[mode or self:Mode()] end
 function BA:Situation(i) return self:List()[i] end
 
--- Setets totems som du kan, i ordning, högst ett per element
-function BA:KnownTotems(s)
+-- Setets totems som du kan, i ordning, högst ett per element.
+-- Cachas per situation (UpdateMana körs vid varje UNIT_POWER_FREQUENT/SPELL_UPDATE_USABLE): töms i
+-- ApplySituations, vid SPELLS_CHANGED/inlärda spells och TOTEMS_CHANGED. Posten kontrollerar också att
+-- setets totems inte ändrats på plats (billig jämförelse, ingen ny tabell).
+local knownCache = setmetatable({}, { __mode = "k" })   -- [situation] = { src = {...}, list = {...}, key = "a,b" }
+local NO_TOTEMS = {}
+
+function BA:InvalidateKnown() wipe(knownCache) end
+
+local function knownEntry(s)
+	local src = s and s.totems or NO_TOTEMS
+	local e = s and knownCache[s]
+	if e and #e.src == #src then
+		local same = true
+		for i = 1, #src do
+			if e.src[i] ~= src[i] then same = false break end
+		end
+		if same then return e end
+	end
 	local out, used = {}, {}
-	for _, name in ipairs(s and s.totems or {}) do
+	for _, name in ipairs(src) do
 		local el = ns.Spellbook:TotemElement(name)
 		if name ~= "" and el and not used[el] and ns.Spellbook:Knows(name) then
 			used[el] = true
 			table.insert(out, name)
 		end
 	end
+	local copy = {}
+	for i = 1, #src do copy[i] = src[i] end
+	e = { src = copy, list = out, key = table.concat(out, ",") }
+	if s then knownCache[s] = e end
+	return e
+end
+
+-- Publik: en egen kopia (anroparen får ändra i den utan att förstöra cachen)
+function BA:KnownTotems(s)
+	local list = knownEntry(s).list
+	local out = {}
+	for i = 1, #list do out[i] = list[i] end
 	return out
 end
 
@@ -185,7 +214,8 @@ function BA:BuildSituationBar()
 		b.callMark:Hide()
 		b.glow = ns.addGlow(b, 1, 0.85, 0.2)
 		b.rec = ns.addGlow(b, 0.3, 1, 0.3)
-		b:SetScript("PreClick", function(self, button)
+		b:SetScript("PreClick", function(self, button, down)
+			if not BA:PressCounts(self, button, down) then return end
 			if button == "RightButton" then
 				if not InCombatLockdown() then BA:LoadCall(self.index) end
 				-- Utan Call-spell kör högerklick samma /castsequence som vänsterklick
@@ -208,6 +238,7 @@ function BA:ApplySituations()
 		ns.afterCombat("situations", function() BA:ApplySituations() end)
 		return
 	end
+	wipe(knownCache)
 	local cfg = ns.char.bars.situations
 	local size, gap = cfg.size or 36, 6
 	local perRow = math.max(1, cfg.perRow or MAX)
@@ -364,9 +395,10 @@ end
 ---------------------------------------------------------------------------------------------------
 local seq = {}   -- [index] = { key, pos, at, pressed }
 local PRESS_WINDOW = 1
+local REARM_GAP = 0.3   -- ett tryck så här snart efter att sekvensen gått fram är samma tryck (släppet)
 
-local function seqFor(index, totems)
-	local key = table.concat(totems, ",")
+local function seqFor(index, known)
+	local key, totems = known.key, known.list
 	local q = seq[index]
 	if not q or q.key ~= key then
 		q = { key = key, pos = 1, at = -100 }
@@ -379,15 +411,40 @@ end
 
 -- Totemet vänsterklick på situationen lägger härnäst (nil om du inte kan något i setet)
 function BA:NextTotem(index)
-	local totems = self:KnownTotems(self:Situation(index))
-	if #totems == 0 then return nil end
-	return totems[seqFor(index, totems).pos]
+	local known = knownEntry(self:Situation(index))
+	if #known.list == 0 then return nil end
+	return known.list[seqFor(index, known).pos]
 end
 
 function BA:SeqPressed(index)
-	local totems = self:KnownTotems(self:Situation(index))
-	if #totems == 0 then return end
-	seqFor(index, totems).pressed = GetTime()
+	local known = knownEntry(self:Situation(index))
+	if #known.list == 0 then return end
+	local q = seqFor(index, known)
+	local now = GetTime()
+	-- Castens SUCCEEDED kan komma före knappsläppet: släppet ska inte öppna ett nytt fönster
+	if now - q.at < REARM_GAP then return end
+	q.pressed = now
+end
+
+-- Säkra knappar med AnyUp + AnyDown får PreClick två gånger per tryck, men klienten castar bara på en av
+-- dem (CVar ActionButtonUseKeyDown). Bara den riktningen räknas. CVar okänd: nedtrycket räknas och
+-- släppet av samma knapp hoppas över. down = nil (t.ex. /click): räknas.
+function BA:PressCounts(b, button, down)
+	if type(down) ~= "boolean" then return true end
+	local getBool = (C_CVar and C_CVar.GetCVarBool) or rawget(_G, "GetCVarBool")
+	local useDown = ns.get(getBool, "ActionButtonUseKeyDown")
+	if type(useDown) == "boolean" then return down == useDown end
+	b.heldDown = b.heldDown or {}
+	button = button or "LeftButton"
+	if down then
+		b.heldDown[button] = true
+		return true
+	end
+	if b.heldDown[button] then
+		b.heldDown[button] = nil
+		return false
+	end
+	return true
 end
 
 function BA:OnCast(name)
@@ -395,9 +452,10 @@ function BA:OnCast(name)
 	local changed = false
 	for index, q in pairs(seq) do
 		if q.pressed and now - q.pressed <= PRESS_WINDOW then
-			local totems = self:KnownTotems(self:Situation(index))
+			local known = knownEntry(self:Situation(index))
+			local totems = known.list
 			-- Har setet ändrats sedan trycket börjar sekvensen om (seqFor byter tabell)
-			for i, t in ipairs(seqFor(index, totems) == q and totems or {}) do
+			for i, t in ipairs(seqFor(index, known) == q and totems or {}) do
 				if t == name then
 					-- Fram till totemet efter det som castades (synkar också om läget var fel)
 					q.pos = i % #totems + 1
@@ -574,7 +632,11 @@ function BA:OnShamanLogin()
 	self:BuildSituationBar()
 	self:BuildCounterBar()
 	self:Refresh()
-	ns.listen("SPELLS_CHANGED", function() BA:Refresh() end)
+	ns.listen("SPELLS_CHANGED", function() wipe(knownCache); BA:Refresh() end)
+	-- Nya spells: cachen över kända totems töms (SPELLS_CHANGED kommer också, men först efter skanningen)
+	ns.on("LEARNED_SPELL_IN_TAB", function() wipe(knownCache) end)
+	ns.on("LEARNED_SPELL_IN_SKILL_LINE", function() wipe(knownCache) end)
+	ns.listen("TOTEMS_CHANGED", function() wipe(knownCache) end)
 	ns.on("SPELL_UPDATE_COOLDOWN", function() BA:UpdateCooldowns() end)
 	ns.listen("BINDINGS_CHANGED", function() BA:UpdateKeys() end)
 	ns.on("UPDATE_BINDINGS", function() BA:UpdateKeys() end)

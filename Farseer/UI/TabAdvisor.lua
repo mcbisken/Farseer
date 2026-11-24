@@ -10,7 +10,7 @@ local bossTotem = "Fire Resistance Totem"
 local bossDrop
 
 local RULES = {
-	{ "enabled", "Totem warnings on", "Master switch for all warnings and glows." },
+	{ "enabled", "Totem warnings on", "Master switch for the totem advisor's warnings and glows. Other alerts have their own switches on the Alerts tab; to silence everything use \"Show alerts\" there." },
 	{ "fear", "Fear/charm/sleep on you -> Tremor", "Reads the game's loss-of-control (works in combat)." },
 	{ "fearMobs", "Fear mobs on target/nameplates -> Tremor", "The list below. Add your own mobs." },
 	{ "pvpClass", "PvP: enemy class -> counter totem", "Warlock/Priest -> Tremor, Rogue/Hunter -> Poison Cleansing, Mage -> Grounding, Warrior -> Earthbind, etc." },
@@ -19,7 +19,7 @@ local RULES = {
 	{ "boss", "Boss/zone -> resist totem", "Onyxia/Molten Core -> Fire Resistance, Sapphiron -> Frost Resistance, etc. + custom rules." },
 	{ "noTotems", "Remind in combat without totems", "After 8 s in combat without a single totem." },
 	{ "groupComp", "Recommend situation from group (PvE)", "Green glow on Melee or Caster depending on the group's classes." },
-	{ "sound", "Sound on new warning", "Raid warning sound, at most every 8 seconds per warning." },
+	{ "sound", "Sound on new warning", "Raid warning sound, at most every 8 seconds per warning. Applies to all Farseer alerts." },
 	{ "showText", "Show reason below warning", "Text explaining why the totem is needed." },
 }
 

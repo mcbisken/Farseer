@@ -395,7 +395,10 @@ ns.DEFAULTS = {
 			ranks = {},           -- downranking: [spell] = rank (tomt = Data/ClickCast.lua DOWNRANK_DEFAULT)
 		},
 		custom = {},              -- egna makron: { name, body, perChar }
-		alert = { point = "TOP", x = 0, y = -160, scale = 1, sound = true },
+		alert = { point = "TOP", x = 0, y = -160, scale = 1, sound = true,
+			mode = "always",          -- var varningar visas: always / group / instance / off
+			quietInfo = true,         -- inget ljud för upplysningar (totem dog/gick ut, purge ...)
+		},
 		grid = { show = true, snap = true, size = 16 },   -- rutnät + snäpp när ramarna är upplåsta
 		fearMobs = {},            -- egna tillägg: [lowername] = "Namn"
 		fearMobsRemoved = {},
@@ -436,6 +439,7 @@ ns.DEFAULTS = {
 			groupComp = true,     -- rekommendera situation efter gruppens sammansättning
 			sound = true,
 			showText = true,
+			soloQuiet = true,     -- solo utanför instanser: inget "DROP TOTEMS!", ingen räckvidds-/utgångsvarning
 		},
 		reminders = {
 			shield = true,

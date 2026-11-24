@@ -182,6 +182,7 @@ end)
 test("v1.6 bossmods: DBM-barer -> kontratotem", function()
 	local BM, c = ns.BossMods, ns.char.procs
 	local cbs = dbmCbs
+	rawset(_G, "UnitAffectingCombat", function() return true end)   -- v1.7: bossvarningen visas bara i strid
 	rawset(_G, "DBM", { RegisterCallback = function(_, ev, fn) cbs[ev] = fn end })
 	MOCK.fire("ADDON_LOADED", "DBM-Core")
 	check(type(cbs.DBM_TimerStart) == "function" and type(cbs.DBM_TimerStop) == "function", "DBM-callbacks registrerade")
@@ -254,12 +255,14 @@ test("v1.6 bossmods: DBM-barer -> kontratotem", function()
 	stop("DBM_TimerStop", SECRET)
 	restore()
 	rawset(_G, "DBM", nil)
+	rawset(_G, "UnitAffectingCombat", nil)
 end)
 
 ---------------------------------------------------------------------------------------------------
 test("v1.6 bossmods: BigWigs-barer och pull-påminnelse", function()
 	local BM, c = ns.BossMods, ns.char.procs
 	local msgs = {}
+	rawset(_G, "UnitAffectingCombat", function() return true end)   -- v1.7: bossvarningen visas bara i strid
 	rawset(_G, "BigWigsLoader", { RegisterMessage = function(_, msg, fn) msgs[msg] = fn end })
 	MOCK.fire("ADDON_LOADED", "BigWigs")
 	check(msgs.BigWigs_StartBar and msgs.BigWigs_StopBar and msgs.BigWigs_StartPull, "BigWigs-meddelanden registrerade")
@@ -325,6 +328,7 @@ test("v1.6 bossmods: BigWigs-barer och pull-påminnelse", function()
 	restore()
 	rawset(_G, "BigWigsLoader", nil)
 	rawset(_G, "DBM", nil)
+	rawset(_G, "UnitAffectingCombat", nil)
 	MOCK.runTimers()
 end)
 
