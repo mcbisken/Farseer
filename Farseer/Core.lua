@@ -183,6 +183,18 @@ function ns.merge(dst, defaults)
 	return dst
 end
 
+-- Gör dst till en kopia av src men behåller befintliga undertabeller: flikar, flyttbara ramar och moduler
+-- håller referenser till dem, så de får inte bytas ut (t.ex. när en profil laddas).
+function ns.assign(dst, src)
+	for k in pairs(dst) do
+		if src[k] == nil then dst[k] = nil end
+	end
+	for k, v in pairs(src) do
+		if type(v) == "table" and type(dst[k]) == "table" then ns.assign(dst[k], v) else dst[k] = ns.copy(v) end
+	end
+	return dst
+end
+
 function ns.trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 
 function ns.colorText(text, r, g, b)
@@ -201,6 +213,7 @@ end
 ns.movers = {}
 
 function ns.placeFrame(frame, cfg)
+	if frame.fsDragging then return end   -- dras just nu: släpp först, annars hoppar ramen tillbaka
 	frame:ClearAllPoints()
 	local p = cfg.point or "CENTER"
 	frame:SetPoint(p, UIParent, cfg.relPoint or p, cfg.x or 0, cfg.y or 0)
@@ -223,10 +236,12 @@ function ns.makeMovable(frame, cfg, label)
 	h:RegisterForDrag("LeftButton")
 	h:SetScript("OnDragStart", function()
 		if InCombatLockdown() then return end
+		frame.fsDragging = true
 		frame:StartMoving()
 	end)
 	h:SetScript("OnDragStop", function()
 		frame:StopMovingOrSizing()
+		frame.fsDragging = nil
 		local p, _, rp, x, y = frame:GetPoint()
 		cfg.point, cfg.relPoint, cfg.x, cfg.y = p, rp, x, y
 	end)

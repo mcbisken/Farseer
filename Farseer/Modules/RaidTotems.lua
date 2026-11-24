@@ -111,7 +111,10 @@ function RT:Send()
 		return true, "inte i grupp: visat bara för dig"
 	end
 	for _, l in ipairs(lines) do
-		local ok, err = pcall(SendChatMessage, "Totems: " .. l, channel)
+		-- Den globala SendChatMessage är på väg bort i nya klienter
+		local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+		if not send then return false, "klienten saknar chatt-API — kopiera texten i stället" end
+		local ok, err = pcall(send, "Totems: " .. l, channel)
 		if not ok then return false, "chatten blockerades (" .. tostring(err) .. ") — kopiera texten i stället" end
 	end
 	return true

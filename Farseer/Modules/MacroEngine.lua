@@ -208,7 +208,8 @@ end
 ---------------------------------------------------------------------------------------------------
 local function limits()
 	local acc = _G.MAX_ACCOUNT_MACROS or 120
-	local char = _G.MAX_CHARACTER_MACROS or 18
+	-- Konstanterna finns bara när Blizzards makrofönster har laddats; nya klienter har 120 + 30
+	local char = _G.MAX_CHARACTER_MACROS or 30
 	return acc, char
 end
 
@@ -248,6 +249,7 @@ function ME:CreateFromTemplate(id, quiet)
 	if not t then return false, "okänd mall " .. tostring(id) end
 	local body = self:Render(t)
 	local ok, msg = self:Save(t.name, body, ns.db.macros.perCharacter)
+	if ok and not ns.db.macros.perCharacter then self:ClaimAccountMacros() end
 	if not quiet then
 		if ok then ns.print("makro |cffffd100%s|r %s.", t.name, msg)
 		else ns.print("|cffff4040%s|r: %s", t.name, msg) end
@@ -266,12 +268,30 @@ function ME:CreateCategory(cat)
 	ns.fire("MACROS_CHANGED")
 end
 
--- Uppdatera alla Farseer-makron som redan finns (t.ex. efter level-up eller ändrade inställningar)
-function ME:RefreshExisting()
+-- Kontomakron delas av alla karaktärer: de uppdateras automatiskt bara för den karaktär som senast
+-- skapade/uppdaterade dem för hand, så att en annan shaman (annan level/ras) inte skriver över dem.
+local function me()
+	local n, r = ns.get(UnitName, "player"), ns.get(GetRealmName)
+	return tostring(n or "?") .. "-" .. tostring(r or "?")
+end
+function ME:ClaimAccountMacros() ns.db.macros.owner = me() end
+function ME:OwnsAccountMacros()
+	local o = ns.db.macros.owner
+	if o == nil then self:ClaimAccountMacros() return true end
+	return o == me()
+end
+
+-- Uppdatera alla Farseer-makron som redan finns (t.ex. efter level-up eller ändrade inställningar).
+-- auto = true: automatisk uppdatering (hoppar över andras kontomakron)
+function ME:RefreshExisting(auto)
 	if InCombatLockdown() then return 0 end
+	if not auto then self:ClaimAccountMacros() end
+	local owns = self:OwnsAccountMacros()
+	local maxAcc = limits()
 	local n = 0
 	for _, t in ipairs(ns.MACRO_TEMPLATES) do
-		if self:Exists(t.name) then
+		local idx = self:Exists(t.name)
+		if idx and (owns or idx > maxAcc) then
 			local body = self:Render(t)
 			local cur = ns.get(GetMacroBody, t.name)
 			if type(cur) ~= "string" or ns.trim(cur) ~= ns.trim(body) then
@@ -306,7 +326,7 @@ function ME:OnShamanLogin()
 		C_Timer.After(2, function()
 			pending = false
 			ns.afterCombat("macro-refresh", function()
-				local n = ME:RefreshExisting()
+				local n = ME:RefreshExisting(true)
 				if n > 0 then ns.print("%d makron uppdaterade efter nya spells.", n) end
 			end)
 		end)

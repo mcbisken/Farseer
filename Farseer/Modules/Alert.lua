@@ -11,8 +11,13 @@ function ns.addGlow(button, r, g, b)
 	glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
 	glow:SetBlendMode("ADD")
 	glow:SetVertexColor(r or 1, g or 0.85, b or 0.2, 1)
-	local w = button:GetWidth()
-	glow:SetSize(w * 1.85, w * 1.85)
+	-- Storleken följer knappen (knappar får ofta sin storlek först senare, eller byter storlek i inställningarna)
+	local function fit(w)
+		w = tonumber(w) or 0
+		glow:SetSize(w * 1.85, w * 1.85)
+	end
+	fit(button:GetWidth())
+	if button.HookScript then button:HookScript("OnSizeChanged", function(_, w) fit(w) end) end
 	glow:SetPoint("CENTER")
 	glow:Hide()
 	local ag = glow:CreateAnimationGroup()

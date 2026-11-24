@@ -32,6 +32,7 @@ local function selectTemplate(t)
 	local body, missing = ME:Render(t)
 	previewTitle:SetText(t.name .. (t.experimental and "  |cffffb040(experimentell)|r" or ""))
 	nameBox:SetText(t.name)
+	perCharCheck:SetChecked(ns.db.macros.perCharacter and true or false)
 	previewEdit:SetText(body)
 	setCounter(body)
 	local info = t.desc or ""
@@ -202,7 +203,8 @@ local function build(panel)
 	end, "Skapar/uppdaterar alla (icke-experimentella) makron i kategorin.")
 	all:SetPoint("TOPLEFT", last, "BOTTOMLEFT", 0, -14)
 	local open = UI.Button(p, "Öppna makrofönstret", 140, 24, function()
-		if ShowMacroFrame then pcall(ShowMacroFrame) end
+		-- Makrofönstret ligger lägre än Farseer: stäng Farseer så att det syns
+		if ShowMacroFrame then ns.Options:Toggle(); pcall(ShowMacroFrame) end
 	end, "Blizzards makrofönster, för att dra makron till actionbars.")
 	open:SetPoint("TOPLEFT", all, "BOTTOMLEFT", 0, -4)
 
@@ -239,7 +241,7 @@ local function build(panel)
 	previewTitle:SetPoint("TOPLEFT", p, "TOPLEFT", px, -4)
 	local nl = UI.Label(p, "Namn:", "GameFontNormalSmall")
 	nl:SetPoint("TOPLEFT", previewTitle, "BOTTOMLEFT", 0, -10)
-	nameBox = UI.EditBox(p, 150)
+	nameBox = UI.EditBox(p, 110)
 	nameBox:SetMaxLetters(16)
 	nameBox:SetPoint("LEFT", nl, "RIGHT", 10, 0)
 	perCharCheck = UI.Check(p, "Karaktär", function() return ns.db.macros.perCharacter end, function() end,
@@ -283,7 +285,9 @@ local function build(panel)
 	saveCustomBtn:SetPoint("TOPLEFT", createBtn, "BOTTOMLEFT", 0, -6)
 	deleteBtn = UI.Button(p, "Ta bort", 126, 24, function()
 		local name = ns.trim(nameBox:GetText())
+		if InCombatLockdown() then ns.print("makron kan inte tas bort i strid.") return end
 		UI.Confirm("Ta bort makrot \"" .. name .. "\"" .. (state.customIndex and " (även ur Farseers egna)" or "") .. "?", function()
+			if InCombatLockdown() then ns.print("makron kan inte tas bort i strid.") return end
 			ME:Delete(name)
 			if state.customIndex then
 				table.remove(ns.db.custom, state.customIndex)

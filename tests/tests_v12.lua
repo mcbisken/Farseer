@@ -521,3 +521,59 @@ test("v1.2: flikar, slash, profiler, secret", function()
 	MOCK.runTimers()
 	ns.Procs:Update()
 end)
+
+---------------------------------------------------------------------------------------------------
+test("granskning: profiler behåller tabeller, återställning, delade makron", function()
+	-- En profil skrivs in i befintliga tabeller (flikar och flyttbara ramar har referenser till dem)
+	local procsRef, barsRef, sitRef = ns.char.procs, ns.char.bars, ns.char.bars.situations
+	ns.char.procs.manaPct = 40
+	check(ns.Profiles:Save("granskning"), "profil sparad")
+	ns.char.procs.manaPct = 10
+	check(ns.Profiles:Load("granskning"), "profil laddad")
+	check(ns.char.procs == procsRef and ns.char.bars == barsRef and ns.char.bars.situations == sitRef, "samma tabeller efter laddning")
+	check(ns.char.procs.manaPct == 40, "värdet från profilen")
+	ns.Profiles:Delete("granskning")
+	ns.char.procs.manaPct = 25
+	-- ns.assign: tar bort nycklar som inte finns i källan, behåller undertabeller
+	local dst = { a = 1, sub = { x = 1, y = 2 }, gone = true }
+	local sub = dst.sub
+	ns.assign(dst, { a = 2, sub = { x = 3 } })
+	check(dst.a == 2 and dst.sub == sub and dst.sub.x == 3 and dst.sub.y == nil and dst.gone == nil, "assign")
+	-- Kontomakron: en annan karaktär skriver inte över dem automatiskt
+	ns.db.macros.perCharacter = false
+	ns.MacroEngine:CreateFromTemplate(ns.MACRO_TEMPLATES[1].id, true)
+	local name = ns.MACRO_TEMPLATES[1].name
+	local idx = ns.MacroEngine:Exists(name)
+	check(idx ~= nil, "kontomakro skapat")
+	ns.db.macros.owner = "Någon-Annan"
+	EditMacro(idx, name, nil, "/say gammalt")
+	ns.MacroEngine:RefreshExisting(true)
+	check(ns.trim(GetMacroBody(name)) == "/say gammalt", "auto rör inte andras kontomakron")
+	check(ns.MacroEngine:RefreshExisting() > 0 and ns.trim(GetMacroBody(name)) ~= "/say gammalt", "manuell uppdatering tar över")
+	check(ns.MacroEngine:OwnsAccountMacros(), "äger kontomakron efter manuell uppdatering")
+	-- Call-setets ordning: Earth, Fire, Water, Air
+	check(ns.Totems:SlotOffset(ns.SLOT.EARTH) == 1 and ns.Totems:SlotOffset(ns.SLOT.FIRE) == 2
+		and ns.Totems:SlotOffset(ns.SLOT.WATER) == 3 and ns.Totems:SlotOffset(ns.SLOT.AIR) == 4, "multicast-ordning")
+	rawset(_G, "TOTEM_PRIORITIES", { 1, 2, 3, 4 })
+	check(ns.Totems:SlotOffset(ns.SLOT.EARTH) == 2, "klientens TOTEM_PRIORITIES används")
+	rawset(_G, "TOTEM_PRIORITIES", nil)
+	-- Bekräftelse med % i texten
+	ns.UI.Confirm("Ta bort 100% av \"x\"?", function() end)
+	check(StaticPopupDialogs.FARSEER_CONFIRM.text == "Ta bort 100%% av \"x\"?", "% skyddas i bekräftelsen")
+	-- Enemy cast: SUCCEEDED (channel-start) avslutar inte baren
+	ns.char.procs.enemyCasts = true
+	MOCK.units.target = { name = "X", hostile = true }
+	MOCK.casting.target = { name = "Drain Life", channel = true, start = GetTime(), ends = GetTime() + 5 }
+	MOCK.fire("UNIT_SPELLCAST_CHANNEL_START", "target")
+	MOCK.fire("UNIT_SPELLCAST_SUCCEEDED", "target")
+	check(ns.Procs:CurrentCast() ~= nil, "channel kvar efter SUCCEEDED")
+	MOCK.fire("UNIT_SPELLCAST_CHANNEL_STOP", "target")
+	check(ns.Procs:CurrentCast() == nil, "borta efter CHANNEL_STOP")
+	MOCK.casting.target = nil
+	MOCK.units.target = nil
+	-- Glöden följer knappens storlek
+	local f = CreateFrame("Button", nil, UIParent)
+	local g = ns.addGlow(f)
+	f:SetSize(40, 40)
+	check(g ~= nil, "glöd skapad")
+end)

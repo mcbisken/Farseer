@@ -173,7 +173,9 @@ local function applyInto(dst, src, defaults)
 	if type(src) ~= "table" then return end
 	for k, d in pairs(defaults) do
 		local v = src[k]
-		if v ~= nil and (type(v) == type(d) or d == nil) then dst[k] = ns.copy(v) end
+		if v ~= nil and (type(v) == type(d) or d == nil) then
+			if type(v) == "table" and type(dst[k]) == "table" then ns.assign(dst[k], v) else dst[k] = ns.copy(v) end
+		end
 	end
 end
 
@@ -182,13 +184,18 @@ function PR:Apply(p)
 	if InCombatLockdown() then return false, "kan inte byta profil i strid" end
 	for _, k in ipairs(self.CHAR_KEYS) do
 		local v, d = p.char[k], ns.DEFAULTS.char[k]
-		if v ~= nil and (d == nil or type(v) == type(d)) then ns.char[k] = ns.copy(v) end
+		if v ~= nil and (d == nil or type(v) == type(d)) then
+			-- In i befintliga tabeller: flikar och ramar har referenser till dem
+			if type(v) == "table" and type(ns.char[k]) == "table" then ns.assign(ns.char[k], v) else ns.char[k] = ns.copy(v) end
+		end
 	end
 	ns.merge(ns.char, ns.DEFAULTS.char)
 	applyInto(ns.db.macros, p.macros, ns.DEFAULTS.account.macros)
-	if type(p.custom) == "table" then ns.db.custom = ns.copy(p.custom) end
-	if type(p.fearMobs) == "table" then ns.db.fearMobs = ns.copy(p.fearMobs) end
-	if type(p.bossRules) == "table" then ns.db.bossRules = ns.copy(p.bossRules) end
+	for _, k in ipairs({ "custom", "fearMobs", "bossRules" }) do
+		if type(p[k]) == "table" then
+			if type(ns.db[k]) == "table" then ns.assign(ns.db[k], p[k]) else ns.db[k] = ns.copy(p[k]) end
+		end
+	end
 	ns.Bars:OnLoad()
 	if ns.Advisor.RebuildLists then ns.Advisor:RebuildLists() end
 	ns.fire("BARS_LAYOUT")

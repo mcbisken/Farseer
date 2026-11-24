@@ -36,8 +36,12 @@ local function selectTab(id)
 end
 UI.SelectTab = selectTab
 
+-- Automatisk uppdatering (t.ex. PvE/PvP-byte vid zonbyte) får inte skriva över något man håller på att skriva
 function UI.RefreshCurrent()
-	if main and main:IsShown() and current then selectTab(current) end
+	if not (main and main:IsShown() and current) then return end
+	local focus = GetCurrentKeyBoardFocus and GetCurrentKeyBoardFocus()
+	if focus then return end
+	selectTab(current)
 end
 
 local function build()
@@ -93,7 +97,7 @@ local function build()
 	main.body:SetPoint("TOPLEFT", 12, -88 - extra)
 	main.body:SetPoint("BOTTOMRIGHT", -12, 12)
 
-	main:SetScript("OnShow", function() if current then selectTab(current) end end)
+	main:SetScript("OnHide", function() UI.HideMenu() end)
 	main:Hide()
 end
 

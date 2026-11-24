@@ -55,12 +55,12 @@ med alla inställningskombinationer, keybind-mallar + återställning, Call of t
 secret values, påminnelser, alla UI-flikar, slashkommandon och kontroll av oavsiktliga globaler.
 `tests/tests_v11.lua` täcker v1.1 (tysk klient, HUD, totemdöd, profiler, utrustning, trainer, checklista, T0.5, BiS-jämförelse).
 `tests/tests_v12.lua` täcker v1.2 (procs, mana, purge, casts, DR, totemräckvidd, spec, click-cast, raid-totems, downranking).
-2062 kontroller, 0 fel (2026-11-24).
+2077 kontroller, 0 fel (2026-11-24).
 
 ## Inte verifierat i riktiga klienten än
 Testerna kör mot en mock, inte mot spelet. Saker att kolla första gången i spelet:
 1. Att ett klick på en situationsknapp bara lägger **ett** totem (knapparna registrerar både ned- och upptryck, som ShamanForever gör).
-2. Att högerklick skriver in setet i Call of the Elements (`SetMultiCastSpell`). Om klienten blockerar det säger Farseer till i chatten.
+2. Att högerklick skriver in setet i Call of the Elements (`SetMultiCastSpell`). Om klienten blockerar det säger Farseer till i chatten. Kontrollera också att varje totem hamnar i rätt element: Farseer utgår från att Call-baren har ordningen Earth, Fire, Water, Air (som i Wrath), eller klientens `TOTEM_PRIORITIES` om den finns. Hamnar de fel, kör `/dump GetActionInfo(133)` till `(136)` och säg till.
 3. Rank-syntax (`Earth Shock(Rank 1)`) i de makron som är märkta experimentella.
 4. `/farseer debug` visar totemslottar, secret-läge och fel.
 5. v1.1: att HUD-cooldowns syns i strid (duration-objekt), att `PLAYER_SWING` och `UNIT_SPELLCAST_SENT` levererar

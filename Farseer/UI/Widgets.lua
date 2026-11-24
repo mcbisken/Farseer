@@ -115,7 +115,15 @@ function UI.MultiLine(parent, w, h, onChange)
 	e:SetFontObject(ChatFontNormal)
 	e:SetWidth(w - 36)
 	e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-	e:SetScript("OnTextChanged", function(self, user) if onChange then onChange(self:GetText(), user) end end)
+	e:SetScript("OnTextChanged", function(self, user)
+		if ScrollingEdit_OnTextChanged then ScrollingEdit_OnTextChanged(self, sf) end
+		if onChange then onChange(self:GetText(), user) end
+	end)
+	-- Rulla med markören när texten blir längre än rutan
+	if ScrollingEdit_OnCursorChanged then
+		e:SetScript("OnCursorChanged", ScrollingEdit_OnCursorChanged)
+		e:SetScript("OnUpdate", function(self, elapsed) ScrollingEdit_OnUpdate(self, elapsed, sf) end)
+	end
 	sf:SetScrollChild(e)
 	box:EnableMouse(true)
 	box:SetScript("OnMouseDown", function() e:SetFocus() end)
@@ -171,10 +179,13 @@ function UI.Menu(anchor, items, onPick)
 		local closer = CreateFrame("Button", nil, menu)
 		closer:SetAllPoints(UIParent)
 		closer:SetFrameStrata("FULLSCREEN")
+		closer:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 		closer:SetScript("OnClick", hideMenu)
 		menu.closer = closer
 		closer:SetParent(menu)
 		closer:SetFrameStrata("FULLSCREEN")
+		-- ESC stänger menyn (och den ska inte bli kvar när fönstret stängs)
+		if UISpecialFrames then table.insert(UISpecialFrames, "FarseerMenu") end
 	end
 	if menu:IsShown() and menu.anchor == anchor then hideMenu() return end
 	for _, r in ipairs(menu.rows) do r:Hide() end
@@ -226,6 +237,11 @@ end
 function UI.Dropdown(parent, w, getText, getItems, onPick)
 	local b = UI.Button(parent, "", w, 22)
 	b:SetScript("OnClick", function(self) UI.Menu(self, getItems(), function(v, it) onPick(v, it); self:Refresh() end) end)
+	local fs = b.GetFontString and b:GetFontString()
+	if fs then
+		fs:SetWidth(w - 12)
+		if fs.SetWordWrap then fs:SetWordWrap(false) end
+	end
 	function b:Refresh()
 		self:SetText(getText() or "-")
 	end
@@ -238,7 +254,7 @@ end
 ---------------------------------------------------------------------------------------------------
 function UI.Confirm(text, onYes)
 	StaticPopupDialogs.FARSEER_CONFIRM = {
-		text = text,
+		text = (tostring(text):gsub("%%", "%%%%")), -- texten formateras av StaticPopup: "%" i namn får inte tolkas
 		button1 = YES or "Ja",
 		button2 = NO or "Nej",
 		OnAccept = function() onYes() end,

@@ -78,14 +78,18 @@ local function makeRow(i)
 		local s = list()[i]
 		if s then s.desc = text end
 	end)
-	r.desc:SetPoint("LEFT", 54, -10)
+	r.desc:SetPoint("LEFT", 54, -9)
+	r.desc:SetScript("OnEditFocusLost", function(self)
+		local s = list()[i]
+		if s then s.desc = self:GetText() end
+	end)
 	r.desc:SetFontObject(GameFontHighlightSmall)
 	r.drops = {}
 	for d = 1, 4 do
 		local drop = UI.Dropdown(r, 140, function()
 			local s = list()[i]
 			local name = s and s.totems and s.totems[d]
-			return (name and name ~= "") and name or "(inget)"
+			return (name and name ~= "") and (name:gsub(" Totem$", "")) or "(inget)"
 		end, totemItems, function(value)
 			local s = list()[i]
 			if not s then return end

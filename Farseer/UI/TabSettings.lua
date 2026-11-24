@@ -101,10 +101,16 @@ local function build(p)
 	local dbg = UI.Button(p, "Visa fel/debug", 140, 24, function() ns.Slash("debug") end)
 	dbg:SetPoint("TOPLEFT", dh, "BOTTOMLEFT", 0, -6)
 	local wipeChar = UI.Button(p, "Återställ karaktären", 160, 24, function()
+		if InCombatLockdown() then ns.print("kan inte återställa i strid."); return end
 		UI.Confirm("Återställa ALLA Farseer-inställningar för den här karaktären (situationer, bars, varningar)? "
 			.. "Makron och keybinds i spelet rörs inte. Skriv /reload efteråt.", function()
-			wipe(FarseerCharDB)
-			ns.merge(FarseerCharDB, ns.DEFAULTS.char)
+			if InCombatLockdown() then ns.print("kan inte återställa i strid."); return end
+			-- Säkerhetskopiorna av spelets keybinds och click-cast ska finnas kvar, annars går de inte att återställa
+			local keep = { bindBackup = ns.copy(FarseerCharDB.bindBackup), clickBackup = ns.copy(FarseerCharDB.clickBackup),
+				lastPreset = FarseerCharDB.lastPreset }
+			ns.assign(FarseerCharDB, ns.DEFAULTS.char)
+			for k, v in pairs(keep) do FarseerCharDB[k] = v end
+			if type(FarseerCharDB.bindBackup) ~= "table" then FarseerCharDB.bindBackup = {} end
 			ns.Bars:OnLoad()
 			ns.BindingEngine:OnLoad()
 			ns.print("inställningarna återställda — skriv /reload.")

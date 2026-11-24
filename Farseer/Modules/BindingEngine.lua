@@ -57,11 +57,13 @@ function BE:Apply(id)
 		local ok, res
 		if b.macro then
 			local t = ns.MacroEngine:Template(b.macro)
+			local made, msg = true, nil
 			if t and not ns.MacroEngine:Exists(t.name) then
-				local made, msg = ns.MacroEngine:CreateFromTemplate(b.macro, true)
+				made, msg = ns.MacroEngine:CreateFromTemplate(b.macro, true)
 				if not made then table.insert(errors, t.name .. ": " .. tostring(msg)) end
 			end
-			if t then ok, res = pcall(SetBindingMacro, key, t.name) end
+			-- Ingen bindning till ett makro som inte finns (tangenten skulle bli död)
+			if t and made then ok, res = pcall(SetBindingMacro, key, t.name) else ok = nil end
 		elseif b.spell then
 			ok, res = pcall(SetBindingSpell, key, ns.L(b.spell))
 		elseif b.click then

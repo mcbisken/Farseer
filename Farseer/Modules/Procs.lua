@@ -464,7 +464,8 @@ function PC:OnUnitCast(event, unit)
 		if casts[unit] then casts[unit].notInt = true end
 	elseif event == "UNIT_SPELLCAST_INTERRUPTIBLE" then
 		if casts[unit] then casts[unit].notInt = false end
-	else
+	elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_INTERRUPTED" then
+		-- SUCCEEDED kommer när en channel börjar och FAILED kan gälla ett annat castförsök: de avslutar inget
 		casts[unit] = nil
 	end
 end
@@ -495,7 +496,14 @@ function PC:UpdateCast(now)
 		c.timer = true
 		local fn = c.channel and UnitChannelDuration or UnitCastingDuration
 		local ok, d = pcall(fn, c.unit)
-		if not (ok and d and castBar.SetTimerDuration and pcall(castBar.SetTimerDuration, castBar, d)) then castBar:SetValue(1) end
+		local set = false
+		if ok and d and castBar.SetTimerDuration then
+			-- Channels töms (återstående tid), vanliga casts fylls
+			local dir = c.channel and Enum and Enum.StatusBarTimerDirection and Enum.StatusBarTimerDirection.RemainingTime
+			if dir ~= nil then set = pcall(castBar.SetTimerDuration, castBar, d, nil, dir) end
+			if not set then set = pcall(castBar.SetTimerDuration, castBar, d) end
+		end
+		if not set then castBar:SetValue(1) end
 	end
 	castBar:SetStatusBarColor(c.notInt == true and 0.6 or 1, c.notInt == true and 0.6 or 0.7, c.notInt == true and 0.6 or 0)
 	castBar:Show()

@@ -93,7 +93,9 @@ local function refresh()
 	table.insert(lines, " ")
 	table.insert(lines, "|cffaaaaaaKällor: wclbox, method.gg, conquestcapped (kontrollerade " .. (ns.TRAINER and ns.TRAINER.checked or "?") .. ").|r")
 	trainerText:SetText(table.concat(lines, "\n"))
-	trainerContent:SetHeight(#lines * 14 + 20)
+	-- Rader som bryts blir högre än 14 px: använd textens verkliga höjd
+	local th = trainerText.GetStringHeight and trainerText:GetStringHeight()
+	trainerContent:SetHeight(math.max(#lines * 14, tonumber(th) or 0) + 20)
 
 	-- Hit
 	local sh, mh = LV:Hit()

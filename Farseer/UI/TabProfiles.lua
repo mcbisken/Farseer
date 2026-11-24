@@ -95,9 +95,10 @@ local function build(p)
 		if ns.db.profiles[name] then UI.Confirm("Skriva över profilen \"" .. name .. "\"?", doSave) else doSave() end
 	end)
 	save:SetPoint("LEFT", nameBox, "RIGHT", 6, 0)
-	list = CreateFrame("Frame", nil, p)
-	list:SetSize(380, 30)
-	list:SetPoint("TOPLEFT", l, "BOTTOMLEFT", 0, -14)
+	-- Rullbar lista: spec-delen börjar vid y=-300
+	local sf
+	sf, list = UI.Scroll(p, 380, 196)
+	sf:SetPoint("TOPLEFT", l, "BOTTOMLEFT", 0, -14)
 	list.empty = UI.Label(list, "|cffaaaaaaInga profiler än. Skriv ett namn och tryck Spara.|r", "GameFontHighlightSmall")
 	list.empty:SetPoint("TOPLEFT", 4, -6)
 
@@ -148,7 +149,7 @@ local function build(p)
 	local c1 = UI.Check(p, "Känn av spec och byt när talangerna ändras", function() return sc.auto end,
 		function(v) sc.auto = v; if v then ns.Spec:Check() end end,
 		"Forever saknar spec-API: specen läses från talangpoängen, annars från talanger som Stormstrike och Mana Tide. "
-			.. "Bytet görs utanför strid.")
+			.. "Bytet görs utanför strid. Profilen du väljer nedan laddas när specen byts (inte vid inloggning).")
 	c1:SetPoint("TOPLEFT", specLabel, "BOTTOMLEFT", 0, -4)
 	local c2 = UI.Check(p, "Byt BiS-listans spec", function() return sc.setBis end, function(v) sc.setBis = v end)
 	c2:SetPoint("TOPLEFT", c1, "BOTTOMLEFT", 0, 2)
@@ -169,8 +170,6 @@ local function build(p)
 		table.insert(specWidgets, dd)
 		prev = l
 	end
-	local sn = UI.Label(p, "Profilen laddas när specen byts (inte vid inloggning).", "GameFontDisableSmall")
-	sn:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -14)
 end
 
 UI.AddTab("profiles", "Profiler", build, function() refresh() end)

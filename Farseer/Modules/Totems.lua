@@ -7,6 +7,7 @@ local TO = ns.module("Totems")
 local state = {}   -- [slot] = { name, start, dur }
 local lastCast, destroyed = {}, {}   -- [slot] = GetTime() för egen cast / högerklick-borttagning
 local lastRecall = -100
+local lastTotemicCall = -100   -- Totemic Call flyttar totems: PLAYER_TOTEM_UPDATE då betyder inte att de dog
 
 local function baseName(name)
 	if type(name) ~= "string" then return nil end
@@ -109,7 +110,7 @@ function TO:CheckDeath(slot, prev)
 	local now = GetTime()
 	if prev.start + prev.dur - now < 2 then return end                 -- gick ut av sig själv
 	if now - (lastCast[slot] or -100) < 1.5 then return end           -- du satte ett nytt
-	if now - lastRecall < 1.5 or now - (destroyed[slot] or -100) < 1.5 then return end
+	if now - lastRecall < 1.5 or now - lastTotemicCall < 1.5 or now - (destroyed[slot] or -100) < 1.5 then return end
 	if ns.get(UnitIsDeadOrGhost, "player") == true then return end
 	-- Går slotten att läsa och totemet står kvar är allt som det ska
 	if self:ReadSlot(slot) and state[slot] and state[slot].name == prev.name then return end
@@ -205,11 +206,28 @@ function TO:CheckRange()
 	self:UpdateRangeMarks()
 end
 
+-- Multicast-baren har knapparna i ordningen Earth, Fire, Water, Air (Blizzards TOTEM_PRIORITIES),
+-- inte i totemslot-ordning (Fire=1, Earth=2, Water=3, Air=4). Klientens egen tabell används om den finns.
+local WRATH_ORDER = { 2, 1, 3, 4 }
+function TO:SlotOrder()
+	local p = rawget(_G, "TOTEM_PRIORITIES") or rawget(_G, "SHAMAN_TOTEM_PRIORITIES")
+	if type(p) == "table" and #p == 4 then return p end
+	return WRATH_ORDER
+end
+
+-- Plats (1-4) i multicast-setet för en totemslot
+function TO:SlotOffset(slot)
+	for i, s in ipairs(self:SlotOrder()) do
+		if s == slot then return i end
+	end
+	return slot
+end
+
 -- Multicast-actionslotten för Call-set (1-3) och totemslot (1-4)
 function TO:MultiCastAction(set, slot)
 	local bar = C_ActionBar and ns.get(C_ActionBar.GetMultiCastBarIndex)
 	if type(bar) ~= "number" then bar = 12 end
-	return (bar - 1) * 12 + (set - 1) * 4 + slot
+	return (bar - 1) * 12 + (set - 1) * 4 + self:SlotOffset(slot)
 end
 
 -- Vad Call-setet innehåller just nu: [slot] = totemnamn
@@ -237,6 +255,7 @@ local function onCast(spellID)
 		lastRecall = now
 	elseif name == ns.TOTEMIC_CALL then
 		-- Totemen flyttas till dig: räckvidden börjar om (buffen kommer vid nästa puls)
+		lastTotemicCall = now
 		for _, r in pairs(range) do r.out, r.miss, r.warned = false, 0, false end
 	elseif ns.Spellbook:IsTotem(name) then
 		local el = ns.Spellbook:TotemElement(name)
@@ -355,6 +374,7 @@ function TO:BuildBar()
 	cb:Hide()
 	self.callButton = cb
 	_G["BINDING_NAME_CLICK FarseerTotemicCall:LeftButton"] = "Totemic Call"
+	_G["BINDING_NAME_CLICK FarseerTotemicCall:RightButton"] = "Totemic Recall"
 	bar:SetShown(cfg.show)
 	self:ApplyCallButton()
 	-- Timertext uppdateras ofta, ikoner/cooldown bara vid ändringar
