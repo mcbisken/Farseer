@@ -1,0 +1,32 @@
+# Ny release när en tagg som v1.2.1 pushas. WowUp hittar zip-filen i releasen och uppdaterar addonet.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versionen i TOC ska stämma med taggen
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          toc="$(grep -m1 '^## Version:' Farseer/Farseer.toc | sed 's/^## Version:[[:space:]]*//' | tr -d '\r')"
+          echo "tagg=$tag toc=$toc"
+          test "$tag" = "$toc"
+
+      - name: Packa addonet (zip med mappen Farseer/)
+        run: zip -r "Farseer-${GITHUB_REF_NAME}.zip" Farseer
+
+      - name: Skapa releasen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "Farseer-${GITHUB_REF_NAME}.zip" \
+            --title "Farseer ${GITHUB_REF_NAME}" --generate-notes
