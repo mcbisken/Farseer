@@ -117,3 +117,65 @@ test("v17: Maelstrom-container väntar och faller tillbaka", function()
 	MOCK.unlearn("Maelstrom Weapon")
 	check(#MOCK.errors == 0, "inga fel: " .. tostring(MOCK.errors[1]))
 end)
+
+test("v17: Maelstrom blinkar vid 5 och Stormstrike blinkar", function()
+	learnMW()
+	MOCK.combat = false
+	PC:ResetMaelstromBox()
+	ns.char.procs.flash = true
+	local calls = {}
+	local restore = fakeContainer(calls)
+	local box = PC:SetupMaelstromBox()
+	restore()
+	check(box and box.fullPulse and box.fullPulse.on == true, "5-markeringen blinkar")
+	check(box.flashPulse and box.flashPulse.on == true, "blixten över ikonen blinkar")
+	local fives = 0
+	for _, o in ipairs(calls.bars or {}) do
+		if o.minApplications == 5 and o.maxApplications == 5 then fives = fives + 1 end
+	end
+	check(fives == 2, "markering och blixt fylls bara vid 5 (" .. fives .. ")")
+	-- Av: fast ram, ingen blixt
+	ns.char.procs.flash = false
+	PC:StyleMaelstromBox()
+	check(box.fullPulse.on == false, "blinkning av")
+	check(not box.flash:IsShown(), "blixten dold")
+	ns.char.procs.flash = true
+	PC:StyleMaelstromBox()
+	check(box.fullPulse.on == true and box.flash:IsShown(), "på igen")
+	-- Animationen startas om när ramen visas igen
+	local played = 0
+	box.fullPulse.Play = function() played = played + 1 end
+	box.full.__scripts.OnShow()
+	check(played == 1, "startas om vid OnShow")
+	PC:ResetMaelstromBox()
+	MOCK.unlearn("Maelstrom Weapon")
+
+	-- Stormstrike: glöden går medan ikonen syns, av när den döljs
+	MOCK.learn("Stormstrike")
+	ns.Spellbook:Scan()
+	MOCK.runTimers()
+	ns.char.procs.stormstrike = true
+	PC:StormstrikeCast()
+	local ss = _G.FarseerProcstormstrike
+	check(ss:IsShown(), "Stormstrike syns efter casten")
+	check(ss.glow:IsShown(), "Stormstrike blinkar")
+	ns.char.procs.flash = false
+	PC:UpdateProcs()
+	check(not ss.glow:IsShown(), "flash av: ingen blinkning")
+	ns.char.procs.flash = true
+	PC:UpdateProcs()
+	check(ss.glow:IsShown(), "flash på igen")
+	-- Clearcasting blinkar inte
+	MOCK.auras.player = { { name = "Clearcasting", spellId = 16246, applications = 0, auraInstanceID = 77 } }
+	ns.char.procs.clearcast = true
+	PC:UpdateProcs()
+	local cc = _G.FarseerProcclearcast
+	check(cc:IsShown() and not cc.glow:IsShown(), "Clearcasting utan blinkning")
+	MOCK.auras.player = {}
+	MOCK.unlearn("Stormstrike")
+	ns.Spellbook:Scan()
+	MOCK.runTimers()
+	PC:UpdateProcs()
+	check(not ss:IsShown() and not ss.glow:IsShown(), "dold Stormstrike: glöden av")
+	check(#MOCK.errors == 0, "inga fel: " .. tostring(MOCK.errors[1]))
+end)

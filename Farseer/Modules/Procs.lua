@@ -29,6 +29,7 @@ local PROCS = {
 		file = "Interface\\Icons\\Spell_Shadow_ManaBurn",
 		tip = "Elemental Focus: your next damage spell costs less mana." },
 	{ key = "stormstrike", cfg = "stormstrike", name = "Stormstrike", ids = {}, requires = "Stormstrike", target = true,
+		flash = true,
 		file = "Interface\\Icons\\Ability_Shaman_Stormstrike",
 		tip = "Stormstrike is up: your next Nature spells (shocks, Lightning Bolt) hit harder." },
 	{ key = "flurry", cfg = "flurry", name = "Flurry", ids = { 16257, 16277, 16278, 16279, 16280 },
@@ -128,6 +129,35 @@ local function makeIcon(key, tip)
 	return f
 end
 
+-- Blinkning som alltid går: ritas bara när ramen har något att visa (en statusbar som fylls vid 5 är tom
+-- under 5), så vi behöver inte läsa stackarna (secret i strid). Startas om när ramen visas igen.
+local function addPulse(region)
+	local ok, ag = pcall(region.CreateAnimationGroup, region)
+	if not ok or type(ag) ~= "table" then return nil end
+	ag:SetLooping("BOUNCE")
+	local a = ag:CreateAnimation("Alpha")
+	a:SetFromAlpha(1)
+	a:SetToAlpha(0.2)
+	a:SetDuration(0.4)
+	ag.region = region
+	function ag:Set(on)
+		self.on = on and true or false
+		if self.on then
+			if not self:IsPlaying() then self:Play() end
+		else
+			self:Stop()
+			self.region:SetAlpha(1)
+		end
+	end
+	if region.HookScript then
+		region:HookScript("OnShow", function() if ag.on and not ag:IsPlaying() then ag:Play() end end)
+	end
+	return ag
+end
+PC.addPulse = addPulse
+
+local function flashOn() return cfg().flash ~= false end
+
 -- Statusbar som fylls bara vid max: lyser när stacks == max även om talet är secret
 local function makeSensor(parent, max)
 	local s = CreateFrame("StatusBar", nil, parent)
@@ -151,6 +181,7 @@ function PC:Build()
 		.. "the next Lightning Bolt/Chain Lightning/heal is instant.")
 	mw.title = "Maelstrom Weapon"
 	mw.sensor = makeSensor(mw, ns.MAELSTROM_MAX or 5)
+	mw.sensor.pulse = addPulse(mw.sensor)
 	for _, def in ipairs(PROCS) do makeIcon(def.key, def.tip).title = def.name end
 	for _, def in pairs(CD_TIMERS) do
 		local f = makeIcon(def.key, def.spell .. " is active. The number is seconds left.")
@@ -237,6 +268,7 @@ local function setShown(f, show)
 		f:SetShown(show)
 		PC.dirty = true
 	end
+	if not show and f.glow then f.glow:Off() end
 end
 
 -- Dold för att funktionen är avstängd: ingen reserverad plats
@@ -371,6 +403,23 @@ local function initMaelstromButton(box, button)
 		full = nil
 	end
 	box.full = full
+	if full then box.fullPulse = addPulse(full) end
+	-- Blixt över ikonen vid 5 (samma knep: fylls bara vid max)
+	local flash = CreateFrame("StatusBar", nil, button)
+	flash:SetAllPoints(button)
+	flash:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+	local lt = flash:GetStatusBarTexture()
+	if type(lt) == "table" and lt.SetBlendMode then pcall(lt.SetBlendMode, lt, "ADD") end
+	flash:SetStatusBarColor(1, 0.85, 0.3, 0.35)
+	flash:SetFrameLevel(button:GetFrameLevel() + 1)
+	if pcall(button.SetApplicationBar, button, flash,
+		{ minApplications = max, maxApplications = max, interpolation = immediate() }) then
+		box.flash = flash
+		box.flashPulse = addPulse(flash)
+	else
+		flash:Hide()
+	end
+	PC:FlashMaelstromBox(box)
 	-- Stackbar längst ned (en ruta per stack)
 	local bar = CreateFrame("StatusBar", nil, button)
 	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 2, 2)
@@ -456,6 +505,16 @@ function PC:MaelstromBoxState()
 	return mwBox.button and "active" or "waiting for the buff"
 end
 
+-- Blinkningen på containerns markering (av = fast ram, ingen blixt)
+function PC:FlashMaelstromBox(b)
+	local box = b or mwBox
+	if not box then return end
+	local on = flashOn()
+	if box.fullPulse then pcall(box.fullPulse.Set, box.fullPulse, on) end
+	if box.flashPulse then pcall(box.flashPulse.Set, box.flashPulse, on) end
+	if box.flash then pcall(box.flash.SetShown, box.flash, on) end
+end
+
 -- Storlek och synlighet: bara utanför strid (containerns knapp är spelets)
 function PC:StyleMaelstromBox()
 	local box = mwBox
@@ -463,6 +522,7 @@ function PC:StyleMaelstromBox()
 	local f = icons.maelstrom
 	local on = cfg().maelstrom and ns.Spellbook:Knows("Maelstrom Weapon")
 	pcall(box.container.SetShown, box.container, on and true or false)
+	self:FlashMaelstromBox()
 	local size = f:GetWidth()
 	if type(size) ~= "number" or size <= 0 then return end
 	pcall(box.container.SetSize, box.container, size, size)
@@ -489,6 +549,7 @@ function PC:UpdateMaelstrom()
 		f.icon:SetAlpha(0.35)
 		f.count:SetText("")
 		f.sensor:Hide()
+		if f.sensor.pulse then f.sensor.pulse:Set(false) end
 		f.glow:Off()
 		-- Ljudet går bara när antalet går att läsa (utanför strid / om spelet visar det)
 		if n then
@@ -501,12 +562,13 @@ function PC:UpdateMaelstrom()
 	end
 	f.icon:SetAlpha(1)
 	f.sensor:Show()
+	if f.sensor.pulse then f.sensor.pulse:Set(flashOn()) end
 	showCount(f.count, n, raw)
 	pcall(f.sensor.SetValue, f.sensor, n or raw or 0)
 	if n then
 		f.icon:SetDesaturated(n == 0)
 		if n >= max then
-			f.glow:On()
+			if flashOn() then f.glow:On() else f.glow:Off() end
 			if (mwLast or 0) < max and cfg().maelstromSound then
 				pcall(PlaySound, SOUNDKIT and SOUNDKIT.ALARM_CLOCK_WARNING_3 or 12889, "Master")
 			end
@@ -583,6 +645,7 @@ local function showProc(self, def, f, a)
 	if n and n <= 1 then n = 0 end
 	showCount(f.count, n, raw)
 	setShown(f, true)
+	if def.flash and flashOn() then f.glow:On() else f.glow:Off() end
 end
 
 function PC:UpdateProc(def)

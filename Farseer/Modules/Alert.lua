@@ -28,7 +28,8 @@ function ns.addGlow(button, r, g, b)
 	a:SetDuration(0.45)
 	glow.anim = ag
 	function glow:On()
-		if not self:IsShown() then self:Show(); self.anim:Play() end
+		if not self:IsShown() then self:Show() end
+		if not self.anim:IsPlaying() then self.anim:Play() end
 	end
 	function glow:Off()
 		if self:IsShown() then self.anim:Stop(); self:Hide() end
