@@ -1,0 +1,55 @@
+## Interface: 16001
+## Title: Farseer
+## Notes: Allt-i-ett shaman-addon för WoW: Forever. Makron, keybind-mallar, situationstotems (PvE/PvP), totemvarningar, strids-HUD, procs (Maelstrom, Windfury), larm, click-cast, raid-totems, timers, påminnelser, profiler, trainer/checklista, T0.5 och BiS. /farseer
+## Author: mcbisken
+## Version: 1.2.0
+## SavedVariables: FarseerDB
+## SavedVariablesPerCharacter: FarseerCharDB
+## IconTexture: Interface\Icons\Spell_Nature_BloodLust
+## AddonCompartmentFunc: Farseer_OnCompartmentClick
+## AddonCompartmentFuncOnEnter: Farseer_OnCompartmentEnter
+## AddonCompartmentFuncOnLeave: Farseer_OnCompartmentLeave
+
+Core.lua
+Data\Spells.lua
+Data\Macros.lua
+Data\Bindings.lua
+Data\Situations.lua
+Data\Advisor.lua
+Data\BiS.lua
+Data\Ranks.lua
+Data\T05.lua
+Data\ClickCast.lua
+Modules\Spellbook.lua
+Modules\Totems.lua
+Modules\MacroEngine.lua
+Modules\BindingEngine.lua
+Modules\Alert.lua
+Modules\Bars.lua
+Modules\Advisor.lua
+Modules\Reminders.lua
+Modules\HUD.lua
+Modules\Gear.lua
+Modules\Leveling.lua
+Modules\Profiles.lua
+Modules\Procs.lua
+Modules\Spec.lua
+Modules\ClickCast.lua
+Modules\RaidTotems.lua
+UI\Widgets.lua
+UI\Options.lua
+UI\TabOverview.lua
+UI\TabMacros.lua
+UI\TabBindings.lua
+UI\TabSituations.lua
+UI\TabAdvisor.lua
+UI\TabCombat.lua
+UI\TabAlerts.lua
+UI\TabHealing.lua
+UI\TabRaid.lua
+UI\TabBiS.lua
+UI\TabLeveling.lua
+UI\TabT05.lua
+UI\TabProfiles.lua
+UI\TabSettings.lua
+Slash.lua

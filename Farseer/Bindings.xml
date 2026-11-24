@@ -1,0 +1,32 @@
+<Bindings>
+	<Binding name="CLICK FarseerSit1:LeftButton" header="FARSEER" category="Farseer"/>
+	<Binding name="CLICK FarseerSit2:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit3:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit4:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit5:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit6:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit7:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit8:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit9:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit10:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit1:RightButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit2:RightButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit3:RightButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit4:RightButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit5:RightButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit6:RightButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit7:RightButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit8:RightButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit9:RightButton" category="Farseer"/>
+	<Binding name="CLICK FarseerSit10:RightButton" category="Farseer"/>
+	<Binding name="CLICK FarseerCounter1:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerCounter2:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerCounter3:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerCounter4:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerCounter5:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerCounter6:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerCounter7:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerCounter8:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerShieldButton:LeftButton" category="Farseer"/>
+	<Binding name="CLICK FarseerImbueButton:LeftButton" category="Farseer"/>
+</Bindings>
