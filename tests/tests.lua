@@ -115,7 +115,16 @@ test("makrorendering: innehåll", function()
 	body = ns.MacroEngine:Render(ns.MacroEngine:Template("util_cure"))
 	check(body:find("%[mod:shift,@mouseover,help,nodead%]%[mod:shift,help,nodead%]%[mod:shift,@player%] Cure Disease;"), "FS Cure: " .. body)
 	body = ns.MacroEngine:Render(ns.MacroEngine:Template("pvp_kick"))
-	check(body:find("%[@focus,harm,nodead%]%[@mouseover,harm,nodead%]%[%] Earth Shock"), "FS Kick: " .. body)
+	check(body:find("/cast %[@mouseover,harm,nodead%]%[%] Earth Shock") and not body:find("@focus"), "FS Kick: " .. body)
+	body = ns.MacroEngine:Render(ns.MacroEngine:Template("pvp_fkick"))
+	check(body:find("/cast %[@focus,harm,nodead%]%[harm,nodead%] Earth Shock"), "FS FocusKick: " .. body)
+	check(ns.BindingEngine:ModConflict("tot_earth", "SHIFT-1") == "shift", "Shift-krock upptäcks")
+	check(ns.BindingEngine:ModConflict("tot_earth", "CTRL-1") == "ctrl", "Ctrl-krock upptäcks")
+	check(ns.BindingEngine:ModConflict("pvp_ground", "SHIFT-1") == nil, "Grounding har inga modifier-grenar")
+	check(ns.BindingEngine:ModConflict("tot_earth", "1") == nil, "ingen krock utan modifierare")
+	for _, e in ipairs(ns.BindingEngine:Plan("totems", { mod = "SHIFT" })) do
+		check(not e.modWarn, "Totems & counters på Shift: " .. e.key .. " utan krock")
+	end
 	-- utan Water Shield blir sköldmakrot en enkel cast
 	MOCK.unlearn("Water Shield")
 	ns.Spellbook:Scan()

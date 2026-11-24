@@ -680,3 +680,32 @@ test("Maelstrom-ikonen", function()
 	check(PC:MaelstromIcon(nil) == "Interface\\Icons\\Spell_Shaman_MaelstromWeapon", "ikonfilen som sista utväg")
 	C_Spell.GetSpellTexture = saved
 end)
+
+---------------------------------------------------------------------------------------------------
+test("research: totemset och regler", function()
+	local function has(set, totem) for _, t in ipairs(set.totems) do if t == totem then return true end end end
+	for mode, list in pairs(ns.DEFAULT_SITUATIONS) do
+		check(#list <= ns.MAX_SITUATIONS, mode .. ": högst " .. ns.MAX_SITUATIONS .. " situationer")
+		for _, s in ipairs(list) do
+			check(#s.totems <= 4, s.name .. ": högst 4 totems")
+			check(ns.SituationConflict == nil or ns.SituationConflict(s) == nil, s.name .. ": inga krockande totems")
+			local last = s.totems[#s.totems]
+			for i, t in ipairs(s.totems) do
+				if t == "Searing Totem" or t == "Magma Totem" then
+					check(i == #s.totems or mode == "PVP", s.name .. ": " .. t .. " läggs sist")
+				end
+			end
+		end
+	end
+	local byName = {}
+	for _, s in ipairs(ns.DEFAULT_SITUATIONS.PVE) do byName[s.name] = s end
+	check(byName.Melee and byName.Caster, "Melee och Caster finns (gruppsammansättningen)")
+	check(byName["Fire resist"] and not has(byName["Fire resist"], "Searing Totem"), "Fire resist utan eld-totem")
+	local rules = {}
+	for _, r in ipairs(ns.PVP_CLASS_RULES.PALADIN) do rules[r[1]] = true end
+	check(not rules["Poison Cleansing Totem"], "paladin ger ingen Poison Cleansing")
+	rules = {}
+	for _, r in ipairs(ns.PVP_CLASS_RULES.WARRIOR) do rules[r[1]] = true end
+	check(rules["Tremor Totem"] and not rules["Stoneclaw Totem"], "warrior: Tremor mot Intimidating Shout")
+	check(ns.SituationConflict({ totems = { "Windfury Totem", "Flametongue Totem" } }) ~= nil, "krock Windfury + Flametongue")
+end)

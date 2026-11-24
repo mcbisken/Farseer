@@ -114,6 +114,7 @@ ns.HUD_SPELLS = {
 	{ spell = "Earth Shock", range = true, note = "Shocks share a cooldown" },
 	{ spell = "Stormstrike", range = true },
 	{ spell = "Chain Lightning", range = true },
+	{ spell = "Lava Burst", range = true, note = "+20 % on Flame Shocked targets" },
 	{ spell = "Riptide" },
 	{ spell = "Fire Nova" },
 	{ spell = "Nature's Swiftness" },
@@ -174,6 +175,10 @@ ns.TOTEM_BUFFS = {
 	["Grace of Air Totem"] = { name = "Grace of Air", ids = { 8836, 10626, 25360 } },
 	["Nature Resistance Totem"] = { name = "Nature Resistance", ids = { 10596, 10598, 10599 } },
 	["Windwall Totem"] = { name = "Windwall", ids = { 15108, 15109, 15110 } },
+	-- Forever: Windfury och Flametongue Totem är buffar (sedan 15/10). ID:n okända: matchas på namnet, och
+	-- räckviddsvarningen kommer först när buffen har setts en gång.
+	["Windfury Totem"] = { name = "Windfury Totem", ids = {} },
+	["Flametongue Totem"] = { name = "Flametongue Totem", ids = {} },
 }
 
 -- Spec: talangflikarnas ordning och talanger som avslöjar specen (om talangpoängen inte går att läsa)
@@ -183,6 +188,7 @@ ns.SPEC_SIGNATURE = {
 	{ "enhancement", "Stormstrike" },
 	{ "restoration", "Mana Tide Totem" },
 	{ "restoration", "Riptide" },
+	{ "elemental", "Lava Burst" },
 	{ "elemental", "Lightning Mastery" },
 }
 

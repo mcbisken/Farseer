@@ -68,11 +68,8 @@ add({ id = "enh_shock", cat = "Enhancement", name = "FS EnhShock",
 			{ "shift", "Frost Shock" }, { "ctrl", "Flame Shock" }, { nil, "Earth Shock" } }, ctx.harmTargets)
 	end })
 add({ id = "enh_mw", cat = "Enhancement", name = "FS Maelstrom",
-	desc = "Use at 5 Maelstrom stacks: Lightning Bolt. Shift: Chain Lightning. Alt: Lesser Healing Wave on yourself.",
-	build = function(ctx)
-		return "#showtooltip\n" .. ctx.modcast({
-			{ "shift", "Chain Lightning" }, { "alt", "Lesser Healing Wave", "@player" }, { nil, "Lightning Bolt" } })
-	end })
+	desc = "Use at 5 Maelstrom stacks: instant Lightning Bolt (in Forever, Maelstrom Weapon only affects Lightning Bolt).",
+	body = "#showtooltip Lightning Bolt\n/cast {harm}Lightning Bolt" })
 add({ id = "enh_burst", cat = "Enhancement", name = "FS Farseer",
 	desc = "Rage of the Farseer (+30% attack speed) + racial + trinkets + auto-attack.",
 	build = function(ctx)
@@ -172,8 +169,11 @@ add({ id = "tot_nova", cat = "Totems", name = "FS Nova",
 -- PvP
 ---------------------------------------------------------------------------------------------------
 add({ id = "pvp_kick", cat = "PvP", name = "FS Kick", pvp = true,
-	desc = "Stops your own cast and interrupts focus > mouseover > target with Earth Shock.",
-	body = "#showtooltip Earth Shock\n/stopcasting\n/cast {fharm}{kick}" })
+	desc = "Stops your own cast and interrupts mouseover > target with Earth Shock. Use FS FocusKick for your focus.",
+	body = "#showtooltip Earth Shock\n/stopcasting\n/cast {harm}{kick}" })
+add({ id = "pvp_fkick", cat = "PvP", name = "FS FocusKick", pvp = true,
+	desc = "Stops your own cast and interrupts your focus with Earth Shock (falls back to target if you have no focus).",
+	body = "#showtooltip Earth Shock\n/stopcasting\n/cast [@focus,harm,nodead][harm,nodead] {kick}" })
 add({ id = "pvp_ground", cat = "PvP", name = "FS Ground", pvp = true,
 	desc = "Stops your cast and drops Grounding Totem instantly (catches the next harmful spell).",
 	body = "#showtooltip Grounding Totem\n/stopcasting\n/cast Grounding Totem" })
@@ -186,8 +186,8 @@ add({ id = "pvp_ebind", cat = "PvP", name = "FS Earthbind", pvp = true,
 		return "#showtooltip\n/stopcasting\n" .. ctx.modcast({ { "shift", "Stoneclaw Totem" }, { nil, "Earthbind Totem" } })
 	end })
 add({ id = "pvp_purge", cat = "PvP", name = "FS Purge", pvp = true,
-	desc = "Purge on focus > mouseover > target.",
-	body = "#showtooltip Purge\n/cast {fharm}Purge" })
+	desc = "Purge on mouseover > target.",
+	body = "#showtooltip Purge\n/cast {harm}Purge" })
 add({ id = "pvp_frost", cat = "PvP", name = "FS FrostFocus", pvp = true,
 	desc = "Frost Shock on focus > mouseover > target (slow without switching target).",
 	body = "#showtooltip Frost Shock\n/cast {fharm}Frost Shock" })

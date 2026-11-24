@@ -86,6 +86,25 @@ local function ours(action)
 	return action:find("^CLICK Farseer") ~= nil or action:find("^MACRO FS ") ~= nil
 end
 
+-- Krockar makrots modifier-grenar med tangentens modifierare? Returnerar t.ex. "shift" eller nil
+function BE:ModConflict(macroId, key)
+	local mods = splitKey(key)
+	if not next(mods) then return nil end
+	local t = ns.MacroEngine:Template(macroId)
+	if not t then return nil end
+	local body = t.body or ""
+	if t.build then
+		local ok, res = pcall(ns.MacroEngine.Render, ns.MacroEngine, t)
+		if ok and type(res) == "string" then body = res end
+	end
+	body = body:lower()
+	for m in pairs(mods) do
+		if body:find("mod:" .. m:lower(), 1, true) then return m:lower() end
+	end
+	if body:find("nomod", 1, true) or body:find("[mod]", 1, true) or body:find("[mod,", 1, true) then return "nomod" end
+	return nil
+end
+
 -- Vad mallen gör med valda inställningar: { key, b, cur, skip = orsak|nil, modWarn = bool }
 function BE:Plan(id, opts)
 	local p = byId[id]
@@ -115,15 +134,10 @@ function BE:Plan(id, opts)
 			end
 			used[key] = true
 		end
-		-- Makron med [mod:shift] gör alltid Shift-delen när de ligger på en Shift-tangent
-		if b.macro and key and key:find("SHIFT%-") then
-			local t = ns.MacroEngine:Template(b.macro)
-			local body = t and (t.body or "") or ""
-			if t and t.build then
-				local ok, res = pcall(ns.MacroEngine.Render, ns.MacroEngine, t)
-				if ok and type(res) == "string" then body = res end
-			end
-			e.modWarn = body:find("%[mod:shift%]") ~= nil
+		-- Makron med modifier-grenar beter sig annorlunda på en tangent med samma modifierare:
+		-- [mod:shift] på Shift+tangent tar alltid Shift-delen, [nomod] körs aldrig på en modifierad tangent
+		if b.macro and key then
+			e.modWarn = BE:ModConflict(b.macro, key)
 		end
 		table.insert(out, e)
 	end

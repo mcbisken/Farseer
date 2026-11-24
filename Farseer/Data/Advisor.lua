@@ -4,14 +4,16 @@ local _, ns = ...
 
 -- Fientlig spelare av klassen -> kontratotems (högst prioritet först)
 ns.PVP_CLASS_RULES = {
-	WARLOCK = { { "Tremor Totem", 75, "Warlock: Fear / Howl of Terror" }, { "Grounding Totem", 55, "Warlock: Fear / Death Coil" } },
-	PRIEST = { { "Tremor Totem", 75, "Priest: Psychic Scream" }, { "Grounding Totem", 45, "Priest: Mind Blast / Mana Burn" } },
+	WARLOCK = { { "Tremor Totem", 75, "Warlock: Fear / Howl of Terror / Seduction" }, { "Grounding Totem", 55, "Warlock: Fear / Death Coil" } },
+	PRIEST = { { "Tremor Totem", 75, "Priest: Psychic Scream / Mind Control" }, { "Grounding Totem", 45, "Priest: Mind Blast / Mana Burn" } },
 	ROGUE = { { "Poison Cleansing Totem", 65, "Rogue: poisons" }, { "Earthbind Totem", 50, "Rogue: keep your distance" } },
 	HUNTER = { { "Poison Cleansing Totem", 60, "Hunter: Serpent/Viper Sting" }, { "Earthbind Totem", 50, "Hunter: pet & kiting" },
-		{ "Windwall Totem", 40, "Hunter: reduces arrow damage" } },
-	MAGE = { { "Grounding Totem", 70, "Mage: Polymorph / Frostbolt" }, { "Earthbind Totem", 35, "Mage: blink-kiting" } },
-	WARRIOR = { { "Earthbind Totem", 60, "Warrior: kite with Earthbind" }, { "Stoneclaw Totem", 35, "Warrior: draws attacks" } },
-	PALADIN = { { "Earthbind Totem", 50, "Paladin: kite" }, { "Poison Cleansing Totem", 20, "Paladin" } },
+		{ "Windwall Totem", 40, "Hunter: reduces arrow damage" }, { "Stoneclaw Totem", 30, "Hunter: Stoneclaw taunts the pet" },
+		{ "Tremor Totem", 25, "Hunter: Wyvern Sting / Scare Beast" } },
+	MAGE = { { "Grounding Totem", 70, "Mage: Polymorph / Frostbolt" }, { "Frost Resistance Totem", 40, "Mage: frost damage" },
+		{ "Earthbind Totem", 35, "Mage: blink-kiting" } },
+	WARRIOR = { { "Earthbind Totem", 60, "Warrior: kite with Earthbind" }, { "Tremor Totem", 45, "Warrior: Intimidating Shout" } },
+	PALADIN = { { "Earthbind Totem", 50, "Paladin: kite" }, { "Grounding Totem", 30, "Paladin: Hammer of Justice" } },
 	DRUID = { { "Grounding Totem", 55, "Druid: Entangling Roots / Hibernate" }, { "Earthbind Totem", 45, "Druid: feral" } },
 	SHAMAN = { { "Grounding Totem", 60, "Shaman: Lightning Bolt / Purge" }, { "Earthbind Totem", 30, "Shaman: Ghost Wolf" } },
 }

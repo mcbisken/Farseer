@@ -61,7 +61,7 @@ local function refreshDetails()
 	end
 	content:SetHeight(#plan * ROW_H)
 	summary:SetText(string.format("%d keys will be bound, %d left as they are.%s", binds, kept,
-		warn > 0 and "  |cffffb040(*)|r = macro with a [mod:shift] part: on a Shift key it always does the Shift action." or ""))
+		warn > 0 and "  |cffffb040(*)|r = macro with its own Shift/Ctrl/Alt part: on a key with that modifier it always does that part." or ""))
 	layerDrop:Refresh()
 	keepCheck:Refresh()
 	for _, pb in ipairs(presetButtons) do

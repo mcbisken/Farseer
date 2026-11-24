@@ -120,6 +120,16 @@ local function makeRow(i)
 	return r
 end
 
+-- Totems som inte fungerar ihop (Windfury + Flametongue): första konfliktens text, eller nil
+local function conflictIn(s)
+	local has = {}
+	for _, t in ipairs(s.totems or {}) do has[t] = true end
+	for _, c in ipairs(ns.TOTEM_CONFLICTS or {}) do
+		if has[c[1]] and has[c[2]] then return c[3] end
+	end
+end
+ns.SituationConflict = conflictIn
+
 function refresh()
 	if not p then return end
 	for _, b in ipairs(modeButtons) do
@@ -140,10 +150,14 @@ function refresh()
 			for d = 1, 4 do r.drops[d]:Refresh() end
 			r.hide:Refresh()
 			local dup = duplicateElements(s)
-			-- Röd ram = två totems av samma element (bara det första används)
+			local clash = conflictIn(s)
+			-- Röd ram = två totems av samma element (bara det första används), orange = totems som krockar
 			if #dup > 0 then
 				r:SetBackdropBorderColor(1, 0.25, 0.25, 1)
 				r.num:SetText("|cffff4040" .. i .. "!|r")
+			elseif clash then
+				r:SetBackdropBorderColor(1, 0.6, 0.1, 1)
+				r.num:SetText("|cffffa020" .. i .. "!|r")
 			else
 				r:SetBackdropBorderColor(0.15, 0.18, 0.25, 1)
 				r.num:SetText(i .. ".")
@@ -157,6 +171,7 @@ function refresh()
 	info:SetText((active and "|cff40ff40This mode is shown on the bar now.|r" or "|cffaaaaaaThis mode is not shown right now.|r")
 		.. "  The order is the drop order (left-click). Right-click drops all with Call."
 		.. "  Red border = two totems of the same element (only the first is used)."
+		.. "  Orange = Windfury and Flametongue Totem together (only one of them counts)."
 		.. (InCombatLockdown() and "  |cffff4040Changes take effect after combat.|r" or ""))
 end
 
