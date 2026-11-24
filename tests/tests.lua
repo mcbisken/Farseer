@@ -83,7 +83,7 @@ local function allTemplatesValid(label)
 		check(not body:find("/cast%s*$") and not body:find("/cast%s*\n"), label .. ": " .. t.id .. " tom /cast")
 		check(not names[t.name], "dubblettnamn " .. t.name)
 		names[t.name] = true
-		if t.cat ~= "Verktyg" or t.id ~= "pvp_focus" then
+		if t.cat ~= "Utility" or t.id ~= "pvp_focus" then
 			for _, s in ipairs(missing) do
 				if not s:find("Hearthstone") then check(false, label .. ": " .. t.id .. " saknar " .. s) end
 			end
@@ -441,8 +441,8 @@ test("UI: ett-klicks-setup via popup", function()
 	local found
 	local function walk(w)
 		for _, c in ipairs(w.__children or {}) do
-			if c.__fs == nil and c.__text == "Kör setup" then found = found or c end
-			if c.__kind == "Button" and c.__text == "Kör setup" then found = found or c end
+			if c.__fs == nil and c.__text == "Run setup" then found = found or c end
+			if c.__kind == "Button" and c.__text == "Run setup" then found = found or c end
 			walk(c)
 		end
 	end

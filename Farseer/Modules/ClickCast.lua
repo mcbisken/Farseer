@@ -97,12 +97,12 @@ end
 -- Lägger mallen ovanpå spelets nuvarande click-cast (samma knapp + modifierare ersätts)
 -- Returnerar ok, antal, saknade, fel
 function CC:Apply(id)
-	if InCombatLockdown() then return false, 0, {}, "kan inte ändras i strid" end
-	if not self:Available() then return false, 0, {}, "klienten har inte Click Casting (C_ClickBindings)" end
+	if InCombatLockdown() then return false, 0, {}, "can't be changed in combat" end
+	if not self:Available() then return false, 0, {}, "the client doesn't have Click Casting (C_ClickBindings)" end
 	local t = self:Template(id)
-	if not t then return false, 0, {}, "okänd mall" end
+	if not t then return false, 0, {}, "unknown template" end
 	local add, missing, badMods = self:Build(t)
-	if #add == 0 then return false, 0, missing, "inget att lägga till (inga kända spells)" end
+	if #add == 0 then return false, 0, missing, "nothing to add (no known spells)" end
 	local current = self:Current()
 	if not ns.char.clickBackup then ns.char.clickBackup = ns.copy(current) end
 	local taken = {}
@@ -115,7 +115,7 @@ function CC:Apply(id)
 		table.insert(new, { type = b.type, actionID = b.actionID, button = b.button, modifiers = b.modifiers })
 	end
 	local ok, err = pcall(C_ClickBindings.SetProfileByInfo, new)
-	if not ok then return false, 0, missing, "klienten nekade: " .. tostring(err) end
+	if not ok then return false, 0, missing, "the client refused: " .. tostring(err) end
 	-- Läs tillbaka: syns våra bindningar?
 	local after, found = self:Current(), 0
 	for _, b in ipairs(add) do
@@ -123,16 +123,16 @@ function CC:Apply(id)
 			if a.button == b.button and a.modifiers == b.modifiers and a.actionID == b.actionID then found = found + 1 break end
 		end
 	end
-	if found == 0 then return false, 0, missing, "klienten sparade inte ändringen" end
-	local note = #badMods > 0 and ("modifierare som inte fanns: " .. table.concat(badMods, ", ")) or nil
+	if found == 0 then return false, 0, missing, "the client didn't save the change" end
+	local note = #badMods > 0 and ("modifiers not found: " .. table.concat(badMods, ", ")) or nil
 	return true, found, missing, note
 end
 
 function CC:Restore()
-	if InCombatLockdown() then return false, "kan inte ändras i strid" end
+	if InCombatLockdown() then return false, "can't be changed in combat" end
 	local backup = ns.char.clickBackup
-	if not backup then return false, "inget att återställa" end
-	if not self:Available() then return false, "klienten har inte Click Casting" end
+	if not backup then return false, "nothing to restore" end
+	if not self:Available() then return false, "the client doesn't have Click Casting" end
 	local ok, err = pcall(C_ClickBindings.SetProfileByInfo, backup)
 	if not ok then return false, tostring(err) end
 	ns.char.clickBackup = nil
@@ -140,9 +140,9 @@ function CC:Restore()
 end
 
 -- Läsbar text för en bindning
-local BUTTON = { LeftButton = "Vänster", RightButton = "Höger", MiddleButton = "Mitten", Button4 = "Knapp 4", Button5 = "Knapp 5" }
+local BUTTON = { LeftButton = "Left", RightButton = "Right", MiddleButton = "Middle", Button4 = "Button 4", Button5 = "Button 5" }
 function CC:Describe(b)
 	local mods = b[2] ~= "" and (b[2]:gsub("shift", "Shift"):gsub("ctrl", "Ctrl"):gsub("alt", "Alt"):gsub("%-", "+") .. " + ") or ""
-	local what = b.interaction == "target" and "välj mål" or b.interaction == "menu" and "meny" or b[3]
+	local what = b.interaction == "target" and "target" or b.interaction == "menu" and "menu" or b[3]
 	return mods .. (BUTTON[b[1]] or b[1]) .. ": " .. what
 end

@@ -64,7 +64,7 @@ test("procs: sköldladdningar", function()
 	ns.Procs:Update()
 	check(f.glow:IsShown(), "1 laddning: varning")
 	ns.Reminders:Check()
-	check(_G.FarseerShieldButton.why and _G.FarseerShieldButton.why:find("laddning"), "påminnelsen säger till: "
+	check(_G.FarseerShieldButton.why and _G.FarseerShieldButton.why:find("charge"), "påminnelsen säger till: "
 		.. tostring(_G.FarseerShieldButton.why))
 	a.applications = 0
 	ns.Procs:Update()
@@ -180,13 +180,13 @@ test("procs: fiendens casts", function()
 	MOCK.fire("UNIT_SPELLCAST_START", "target")
 	check(ns.Alert:Current() ~= "cast-target", "kan inte avbrytas: ingen varning")
 	ns.Procs:Update()
-	check(bar.text:GetText():find("kan inte avbrytas", 1, true), "visar att den inte kan avbrytas")
+	check(bar.text:GetText():find("can't be interrupted", 1, true), "visar att den inte kan avbrytas")
 	-- secret: bara att fienden castar, spelets timer driver baren
 	MOCK.secretMode = true
 	MOCK.fire("UNIT_SPELLCAST_START", "target")
 	ns.Procs:Update()
 	MOCK.secretMode = false
-	check(bar:IsShown() and bar.text:GetText():find("castar", 1, true), "secret: " .. bar.text:GetText())
+	check(bar:IsShown() and bar.text:GetText():find("casting", 1, true), "secret: " .. bar.text:GetText())
 	MOCK.fire("UNIT_SPELLCAST_INTERRUPTED", "target")
 	-- vänlig target: inget
 	MOCK.units.target = { name = "Vän", hostile = false }
@@ -256,7 +256,7 @@ test("totems: utom räckhåll + Totemic Call", function()
 	ns.Totems:CheckRange()
 	check(ns.Totems:OutOfRange(2), "två missar: utom räckhåll")
 	check(ns.Alert:Current() == "range-2", "varning: " .. tostring(ns.Alert:Current()))
-	check(_G.FarseerTotemEARTH.rangeText:GetText() == "UTOM", "markering på totembaren")
+	check(_G.FarseerTotemEARTH.rangeText:GetText() == "OOR", "markering på totembaren")
 	check(cb.glow:IsShown(), "Totemic Call lyser")
 	MOCK.runTimers()
 	ns.Totems:CheckRange()
@@ -397,12 +397,12 @@ test("click-cast: mallar", function()
 	-- klienten sparar inte: säger ifrån
 	C_ClickBindings.SetProfileByInfo = function() end
 	ok, _, _, err = ns.ClickCast:Apply("heal_mods")
-	check(not ok and err:find("sparade inte"), "läser tillbaka: " .. tostring(err))
+	check(not ok and err:find("didn't save"), "läser tillbaka: " .. tostring(err))
 	C_ClickBindings.SetProfileByInfo = function() error("ADDON_ACTION_FORBIDDEN") end
 	ok, _, _, err = ns.ClickCast:Apply("heal_mods")
-	check(not ok and err:find("nekade"), "nekad: " .. tostring(err))
+	check(not ok and err:find("refused"), "nekad: " .. tostring(err))
 	ns.char.clickBackup = nil
-	check(ns.ClickCast:Describe({ "LeftButton", "shift-ctrl", "Chain Heal" }) == "Shift+Ctrl + Vänster: Chain Heal", "beskrivning: "
+	check(ns.ClickCast:Describe({ "LeftButton", "shift-ctrl", "Chain Heal" }) == "Shift+Ctrl + Left: Chain Heal", "beskrivning: "
 		.. ns.ClickCast:Describe({ "LeftButton", "shift-ctrl", "Chain Heal" }))
 	rawset(_G, "C_ClickBindings", nil)
 end)
@@ -429,7 +429,7 @@ test("raid: totemfördelning", function()
 	MOCK.chatBlocked = true
 	local err
 	ok, err = ns.RaidTotems:Send()
-	check(not ok and err:find("kopiera"), "blockerad chatt: " .. tostring(err))
+	check(not ok and err:find("copy"), "blockerad chatt: " .. tostring(err))
 	MOCK.chatBlocked = nil
 	-- raid: grupper
 	local roster = {
@@ -576,4 +576,47 @@ test("granskning: profiler behåller tabeller, återställning, delade makron", 
 	local g = ns.addGlow(f)
 	f:SetSize(40, 40)
 	check(g ~= nil, "glöd skapad")
+end)
+
+---------------------------------------------------------------------------------------------------
+test("PvP-varning bara när fienden är engagerad, rutnät", function()
+	local cfg = ns.char.advisor
+	cfg.pvpClass, cfg.pvpNearby = true, false
+	MOCK.learn("Grounding Totem")
+	ns.Spellbook:Scan()
+	MOCK.runTimers()
+	MOCK.units.nameplate1 = { name = "Frostmage", class = "MAGE", hostile = true, isPlayer = true, player = true }
+	MOCK.fire("NAME_PLATE_UNIT_ADDED", "nameplate1")
+	local function grounding() return ns.Advisor:Evaluate()["Grounding Totem"] ~= nil end
+	check(not ns.Advisor:Engaged("nameplate1"), "mage i närheten är inte engagerad")
+	check(not grounding(), "ingen varning för en mage som bara står i närheten")
+	MOCK.units.nameplate1.target = "player"
+	check(ns.Advisor:Engaged("nameplate1"), "mage som targetar dig är engagerad")
+	check(grounding(), "varning när magen targetar dig")
+	MOCK.units.nameplate1.target = nil
+	cfg.pvpNearby = true
+	check(grounding(), "varning för alla i närheten när det är påslaget")
+	check(ns.Advisor:Engaged("target"), "ditt target räknas alltid")
+	cfg.pvpNearby = false
+	MOCK.fire("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+	MOCK.units.nameplate1 = nil
+	MOCK.unlearn("Grounding Totem")
+	ns.Spellbook:Scan()
+	MOCK.runTimers()
+	-- Rutnätet visas när ramarna är upplåsta och göms när de låses
+	ns.setLocked(false)
+	check(_G.FarseerGrid and _G.FarseerGrid:IsShown(), "rutnät visas upplåst")
+	ns.db.grid.show = false
+	ns.Grid:Update()
+	check(not _G.FarseerGrid:IsShown(), "rutnät kan stängas av")
+	ns.db.grid.show = true
+	ns.setLocked(true)
+	check(not _G.FarseerGrid:IsShown(), "rutnät göms när ramarna låses")
+	-- Snäpp: ramens mitt flyttas till närmaste rutnätspunkt
+	local f = CreateFrame("Frame", nil, UIParent)
+	local c = {}
+	check(ns.Grid:Snap(f, c) and c.point == "CENTER" and c.x == 0 and c.y == 0, "snäpp mot rutnätet")
+	ns.db.grid.size = 200
+	check(ns.Grid:Size() == 64, "rutnätets storlek begränsas")
+	ns.db.grid.size = 16
 end)

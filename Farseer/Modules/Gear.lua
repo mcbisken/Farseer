@@ -37,16 +37,16 @@ end
 function GE:Equip(name, quiet)
 	local s = type(name) == "table" and name or self:Find(name)
 	if not s then
-		if not quiet then ns.print("hittar inget utrustningsset som heter \"%s\".", tostring(name)) end
+		if not quiet then ns.print("no equipment set named \"%s\" found.", tostring(name)) end
 		return false
 	end
 	if InCombatLockdown() then
-		if not quiet then ns.print("kan inte byta utrustning i strid.") end
+		if not quiet then ns.print("can't change equipment in combat.") end
 		return false
 	end
 	if s.equipped then return true end
 	local ok = pcall(C_EquipmentSet.UseEquipmentSet, s.id)
-	if ok and not quiet then ns.print("utrustning: |cffffd100%s|r", s.name) end
+	if ok and not quiet then ns.print("equipment: |cffffd100%s|r", s.name) end
 	return ok
 end
 
@@ -56,7 +56,7 @@ function GE:Build()
 	bar = CreateFrame("Frame", "FarseerGearBar", UIParent)
 	bar:SetSize(30, 30)
 	ns.placeFrame(bar, c)
-	ns.makeMovable(bar, c, "Farseer: utrustning")
+	ns.makeMovable(bar, c, "Farseer: equipment")
 end
 
 function GE:Layout()
@@ -84,7 +84,7 @@ function GE:Layout()
 			b:SetScript("OnEnter", function(self)
 				GameTooltip:SetOwner(self, "ANCHOR_TOP")
 				GameTooltip:SetText(self.set.name)
-				GameTooltip:AddLine(self.set.equipped and "På dig nu" or "Klick: byt till setet (utanför strid)", 1, 1, 1)
+				GameTooltip:AddLine(self.set.equipped and "Currently equipped" or "Click: switch to this set (out of combat)", 1, 1, 1)
 				GameTooltip:Show()
 			end)
 			b:SetScript("OnLeave", function() GameTooltip:Hide() end)

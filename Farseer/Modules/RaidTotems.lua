@@ -79,7 +79,7 @@ function RT:Lines(plan)
 	for _, p in ipairs(plan) do
 		local names = {}
 		for _, t in ipairs(p.totems) do table.insert(names, short(t)) end
-		table.insert(lines, string.format("Grupp %d (%s) - %s: %s", p.group, p.kind == "melee" and "melee" or "casters",
+		table.insert(lines, string.format("Group %d (%s) - %s: %s", p.group, p.kind == "melee" and "melee" or "casters",
 			p.shaman, table.concat(names, ", ")))
 	end
 	return lines
@@ -94,28 +94,28 @@ end
 -- Skriver ditt set till Call-spellen (utanför strid)
 function RT:LoadMine()
 	local mine = self:Mine()
-	if not mine then return false, "du är inte med i förslaget" end
-	if InCombatLockdown() then return false, "inte i strid" end
-	if not ns.Bars:WriteCall(mine.totems) then return false, "Call-setet kunde inte skrivas (ingen Call-spell eller blockerat)" end
+	if not mine then return false, "you're not in the plan" end
+	if InCombatLockdown() then return false, "not in combat" end
+	if not ns.Bars:WriteCall(mine.totems) then return false, "couldn't write the Call set (no Call spell, or blocked)" end
 	return true
 end
 
 -- Skickar förslaget i raid-/gruppchatten (ett klick = du skickar, inte addonet i bakgrunden)
 function RT:Send()
 	local lines = self:Lines()
-	if #lines == 0 then return false, "inga shamans i gruppen" end
+	if #lines == 0 then return false, "no shamans in the group" end
 	local n = ns.get(GetNumGroupMembers) or 0
 	local channel = ns.get(IsInRaid) == true and "RAID" or (n > 0 and "PARTY" or nil)
 	if not channel then
 		for _, l in ipairs(lines) do ns.print(l) end
-		return true, "inte i grupp: visat bara för dig"
+		return true, "not in a group: shown only to you"
 	end
 	for _, l in ipairs(lines) do
 		-- Den globala SendChatMessage är på väg bort i nya klienter
 		local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
-		if not send then return false, "klienten saknar chatt-API — kopiera texten i stället" end
+		if not send then return false, "the client has no chat API — copy the text instead" end
 		local ok, err = pcall(send, "Totems: " .. l, channel)
-		if not ok then return false, "chatten blockerades (" .. tostring(err) .. ") — kopiera texten i stället" end
+		if not ok then return false, "chat was blocked (" .. tostring(err) .. ") — copy the text instead" end
 	end
 	return true
 end

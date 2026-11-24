@@ -34,13 +34,13 @@ function SP:Detect()
 			if n > best then best, idx, tie = n, i, false elseif n == best and n > 0 then tie = true end
 		end
 		if idx and not tie then
-			return ns.SPEC_TABS[idx], string.format("talangpoäng %d/%d/%d", pts[1], pts[2], pts[3])
+			return ns.SPEC_TABS[idx], string.format("talent points %d/%d/%d", pts[1], pts[2], pts[3])
 		end
 	end
 	for _, sig in ipairs(ns.SPEC_SIGNATURE) do
-		if ns.Spellbook:Knows(sig[2]) then return sig[1], "talangen " .. sig[2] end
+		if ns.Spellbook:Knows(sig[2]) then return sig[1], "talent " .. sig[2] end
 	end
-	return nil, "inga talanger valda"
+	return nil, "no talents chosen"
 end
 
 function SP:Current() return cfg().last end
@@ -59,15 +59,15 @@ function SP:Check(quiet)
 	local did = {}
 	if c.setBis and ns.char.bisSpec ~= spec then
 		ns.char.bisSpec = spec
-		table.insert(did, "BiS-listan visar " .. ns.SPEC_NAME[spec])
+		table.insert(did, "BiS list shows " .. ns.SPEC_NAME[spec])
 	end
 	local profile = not first and c.profiles[spec]
 	if profile and profile ~= "" then
 		if ns.db.profiles[profile] then
 			local ok, err = ns.Profiles:Load(profile)
-			table.insert(did, ok and ("profilen \"" .. profile .. "\" laddad") or ("profilen kunde inte laddas: " .. tostring(err)))
+			table.insert(did, ok and ("profile \"" .. profile .. "\" loaded") or ("profile could not be loaded: " .. tostring(err)))
 		else
-			table.insert(did, "profilen \"" .. profile .. "\" finns inte längre")
+			table.insert(did, "profile \"" .. profile .. "\" no longer exists")
 		end
 	end
 	ns.fire("SPEC_CHANGED", spec, first)

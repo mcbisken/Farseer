@@ -87,11 +87,11 @@ local function report(err)
 	table.insert(ns.errors, err)
 	reported = reported + 1
 	if reported > 10 then
-		if reported == 11 then ns.print("många fel — fler visas inte. /farseer debug listar dem.") end
+		if reported == 11 then ns.print("many errors — not showing more. /farseer debug lists them.") end
 		return
 	end
 	local h = geterrorhandler and geterrorhandler()
-	if h then h(err) else ns.print("fel: %s", err) end
+	if h then h(err) else ns.print("error: %s", err) end
 end
 ns.report = report
 
@@ -242,6 +242,8 @@ function ns.makeMovable(frame, cfg, label)
 	h:SetScript("OnDragStop", function()
 		frame:StopMovingOrSizing()
 		frame.fsDragging = nil
+		-- Snäpp mot rutnätet (håll Shift för fri placering)
+		if ns.Grid:SnapOn() and not (IsShiftKeyDown and IsShiftKeyDown()) and ns.Grid:Snap(frame, cfg) then return end
 		local p, _, rp, x, y = frame:GetPoint()
 		cfg.point, cfg.relPoint, cfg.x, cfg.y = p, rp, x, y
 	end)
@@ -252,13 +254,112 @@ end
 
 function ns.setLocked(locked)
 	if InCombatLockdown() then
-		ns.print("kan inte låsa upp/låsa i strid.")
+		ns.print("can't unlock/lock in combat.")
 		return
 	end
 	ns.char.locked = locked and true or false
 	for _, h in ipairs(ns.movers) do h:SetShown(not ns.char.locked) end
+	ns.Grid:Update()
 	ns.fire("LOCK_CHANGED", ns.char.locked)
 end
+
+---------------------------------------------------------------------------------------------------
+-- Rutnät: visas när ramarna är upplåsta, och ramar som släpps snäpper mot det
+---------------------------------------------------------------------------------------------------
+local Grid = {}
+ns.Grid = Grid
+local gridFrame, gridLines, gridBuilt = nil, {}, nil
+
+function Grid:Config() return (ns.db and ns.db.grid) or { show = true, snap = true, size = 16 } end
+function Grid:Size()
+	local s = tonumber(self:Config().size) or 16
+	return math.max(4, math.min(64, s))
+end
+function Grid:SnapOn() return self:Config().snap ~= false end
+
+local function line(i)
+	local t = gridLines[i]
+	if not t then
+		t = gridFrame:CreateTexture(nil, "BACKGROUND")
+		gridLines[i] = t
+	end
+	t:ClearAllPoints()
+	t:Show()
+	return t
+end
+
+function Grid:Build()
+	if not gridFrame then
+		gridFrame = CreateFrame("Frame", "FarseerGrid", UIParent)
+		gridFrame:SetAllPoints(UIParent)
+		gridFrame:SetFrameStrata("BACKGROUND")
+		gridFrame:EnableMouse(false)
+		gridFrame:Hide()
+		gridFrame:SetScript("OnSizeChanged", function() gridBuilt = nil; if gridFrame:IsShown() then Grid:Build() end end)
+	end
+	local size = self:Size()
+	local w, h = UIParent:GetWidth(), UIParent:GetHeight()
+	if gridBuilt == size .. ":" .. w .. ":" .. h then return end
+	gridBuilt = size .. ":" .. w .. ":" .. h
+	local n = 0
+	local function draw(vertical, offset)
+		n = n + 1
+		local t = line(n)
+		local center = offset == 0
+		local major = (offset / size) % 4 == 0
+		if center then t:SetColorTexture(1, 0.25, 0.25, 0.75)
+		elseif major then t:SetColorTexture(0.3, 0.65, 1, 0.35)
+		else t:SetColorTexture(1, 1, 1, 0.12) end
+		if vertical then
+			t:SetWidth(center and 2 or 1)
+			t:SetPoint("TOP", gridFrame, "TOP", offset, 0)
+			t:SetPoint("BOTTOM", gridFrame, "BOTTOM", offset, 0)
+		else
+			t:SetHeight(center and 2 or 1)
+			t:SetPoint("LEFT", gridFrame, "LEFT", 0, offset)
+			t:SetPoint("RIGHT", gridFrame, "RIGHT", 0, offset)
+		end
+	end
+	-- Linjerna utgår från skärmens mitt, så att mittlinjen och snäppet stämmer överens
+	for k = 0, math.floor(w / 2 / size) do
+		draw(true, k * size)
+		if k > 0 then draw(true, -k * size) end
+	end
+	for k = 0, math.floor(h / 2 / size) do
+		draw(false, k * size)
+		if k > 0 then draw(false, -k * size) end
+	end
+	for i = n + 1, #gridLines do gridLines[i]:Hide() end
+end
+
+function Grid:Update()
+	local show = ns.char and not ns.char.locked and self:Config().show ~= false and not InCombatLockdown()
+	if show then
+		self:Build()
+		gridFrame:Show()
+	elseif gridFrame then
+		gridFrame:Hide()
+	end
+end
+
+-- Flyttar ramens mitt till närmaste rutnätspunkt (räknat från skärmens mitt) och sparar positionen
+function Grid:Snap(frame, cfg)
+	local cx, cy = frame:GetCenter()
+	local ux, uy = UIParent:GetCenter()
+	if not (cx and cy and ux and uy) then return false end
+	local s = frame:GetEffectiveScale() / UIParent:GetEffectiveScale()
+	local size = self:Size()
+	local dx = math.floor((cx * s - ux) / size + 0.5) * size
+	local dy = math.floor((cy * s - uy) / size + 0.5) * size
+	cfg.point, cfg.relPoint, cfg.x, cfg.y = "CENTER", "CENTER", dx / s, dy / s
+	frame:ClearAllPoints()
+	frame:SetPoint("CENTER", UIParent, "CENTER", cfg.x, cfg.y)
+	return true
+end
+
+-- I strid kan ramarna inte flyttas: göm rutnätet så länge
+ns.listen("COMBAT_START", function() if gridFrame then gridFrame:Hide() end end)
+ns.listen("COMBAT_END", function() Grid:Update() end)
 
 ---------------------------------------------------------------------------------------------------
 -- Moduler
@@ -295,6 +396,7 @@ ns.DEFAULTS = {
 		},
 		custom = {},              -- egna makron: { name, body, perChar }
 		alert = { point = "TOP", x = 0, y = -160, scale = 1, sound = true },
+		grid = { show = true, snap = true, size = 16 },   -- rutnät + snäpp när ramarna är upplåsta
 		fearMobs = {},            -- egna tillägg: [lowername] = "Namn"
 		fearMobsRemoved = {},
 		bossRules = {},           -- egna: [lowername] = { name = "...", totem = "..." }
@@ -327,6 +429,7 @@ ns.DEFAULTS = {
 			fear = true,          -- fear/charm/sleep på dig -> Tremor
 			fearMobs = true,      -- fear-mobs på target/nameplates -> Tremor
 			pvpClass = true,      -- fiendens klass i PvP -> kontratotem
+			pvpNearby = false,    -- även fiender som bara syns i närheten (annars: bara target/focus/de som targetar dig)
 			dispel = true,        -- gift/sjukdom på gruppen -> Cleansing
 			boss = true,          -- boss/zon -> resist-totem
 			noTotems = true,      -- i strid utan totems
@@ -413,8 +516,10 @@ ns.on("PLAYER_LOGIN", function()
 	runAll("OnLogin")
 	if ns.isShaman then
 		runAll("OnShamanLogin")
-		ns.print("v%s laddat. Skriv |cffffd100/farseer|r för inställningar.", ns.VERSION)
+		-- Upplåst vid /reload: visa handtagen och rutnätet igen
+		if not ns.char.locked and not InCombatLockdown() then ns.setLocked(false) end
+		ns.print("v%s loaded. Type |cffffd100/farseer|r for settings.", ns.VERSION)
 	else
-		ns.print("du spelar inte shaman: bars och varningar är avstängda (makron och BiS fungerar).")
+		ns.print("you're not playing a shaman: bars and warnings are disabled (macros and BiS still work).")
 	end
 end)

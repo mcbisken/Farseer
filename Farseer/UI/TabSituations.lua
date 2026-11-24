@@ -17,13 +17,13 @@ end
 
 -- Meny med alla totems grupperade per element
 local function totemItems()
-	local items = { { text = "(inget)", value = "" } }
+	local items = { { text = "(none)", value = "" } }
 	for _, el in ipairs(ns.ELEMENTS) do
 		local c = ns.ELEMENT_COLOR[el]
 		table.insert(items, { text = ns.ELEMENT_NAME[el], header = true })
 		for _, name in ipairs(ns.Spellbook:AllTotems(el)) do
 			local knows = ns.Spellbook:Knows(name)
-			table.insert(items, { text = name .. (knows and "" or "  (kan inte)"), value = name, icon = ns.spellIcon(name),
+			table.insert(items, { text = name .. (knows and "" or "  (not known)"), value = name, icon = ns.spellIcon(name),
 				color = knows and { c[1], c[2], c[3] } or { 0.55, 0.55, 0.55 } })
 		end
 	end
@@ -55,12 +55,12 @@ local function makeRow(i)
 	r.up = UI.Button(r, "^", 20, 18, function()
 		local l = list()
 		if i > 1 then l[i], l[i - 1] = l[i - 1], l[i]; apply(); refresh() end
-	end, "Flytta upp")
+	end, "Move up")
 	r.up:SetPoint("LEFT", 24, 8)
 	r.down = UI.Button(r, "v", 20, 18, function()
 		local l = list()
 		if l[i + 1] then l[i], l[i + 1] = l[i + 1], l[i]; apply(); refresh() end
-	end, "Flytta ned")
+	end, "Move down")
 	r.down:SetPoint("LEFT", 24, -9)
 	r.name = UI.EditBox(r, 110, function(_, text)
 		local s = list()[i]
@@ -89,7 +89,7 @@ local function makeRow(i)
 		local drop = UI.Dropdown(r, 140, function()
 			local s = list()[i]
 			local name = s and s.totems and s.totems[d]
-			return (name and name ~= "") and (name:gsub(" Totem$", "")) or "(inget)"
+			return (name and name ~= "") and (name:gsub(" Totem$", "")) or "(none)"
 		end, totemItems, function(value)
 			local s = list()[i]
 			if not s then return end
@@ -103,18 +103,18 @@ local function makeRow(i)
 		drop:SetPoint("LEFT", r, "LEFT", 176 + (d - 1) * 146, 0)
 		r.drops[d] = drop
 	end
-	r.hide = UI.Check(r, "Dold", function() local s = list()[i]; return s and s.hidden end, function(v)
+	r.hide = UI.Check(r, "Hidden", function() local s = list()[i]; return s and s.hidden end, function(v)
 		local s = list()[i]
 		if s then s.hidden = v or nil; apply() end
-	end, "Dölj situationen från baren utan att ta bort den.")
+	end, "Hide the situation from the bar without deleting it.")
 	r.hide:SetPoint("LEFT", r, "LEFT", 176 + 4 * 146 + 2, 0)
 	r.del = UI.Button(r, "X", 22, 20, function()
 		local s = list()[i]
 		if not s then return end
-		UI.Confirm("Ta bort situationen \"" .. (s.name or "") .. "\"?", function()
+		UI.Confirm("Delete the situation \"" .. (s.name or "") .. "\"?", function()
 			table.remove(list(), i); apply(); refresh()
 		end)
-	end, "Ta bort")
+	end, "Delete")
 	r.del:SetPoint("RIGHT", -6, 0)
 	rows[i] = r
 	return r
@@ -154,10 +154,10 @@ function refresh()
 		end
 	end
 	local active = BA:Mode() == editMode
-	info:SetText((active and "|cff40ff40Det här läget visas på baren nu.|r" or "|cffaaaaaaDet här läget visas inte just nu.|r")
-		.. "  Ordningen är läggordningen (vänsterklick). Högerklick lägger alla med Call."
-		.. "  Röd ram = två totems av samma element (bara det första används)."
-		.. (InCombatLockdown() and "  |cffff4040Ändringar slår igenom efter striden.|r" or ""))
+	info:SetText((active and "|cff40ff40This mode is shown on the bar now.|r" or "|cffaaaaaaThis mode is not shown right now.|r")
+		.. "  The order is the drop order (left-click). Right-click drops all with Call."
+		.. "  Red border = two totems of the same element (only the first is used)."
+		.. (InCombatLockdown() and "  |cffff4040Changes take effect after combat.|r" or ""))
 end
 
 local function build(panel)
@@ -165,7 +165,7 @@ local function build(panel)
 	p = panel
 	editMode = BA:Mode()
 	modeButtons = {}
-	local h = UI.Header(p, "Läge:")
+	local h = UI.Header(p, "Mode:")
 	h:SetPoint("TOPLEFT", 4, -6)
 	local pve = UI.Button(p, "PvE", 70, 24, function() editMode = "PVE"; refresh() end)
 	pve:SetPoint("LEFT", h, "RIGHT", 8, 0)
@@ -174,13 +174,13 @@ local function build(panel)
 	pvp:SetPoint("LEFT", pve, "RIGHT", 4, 0)
 	pvp.mode = "PVP"
 	modeButtons = { pve, pvp }
-	local show = UI.Button(p, "Visa detta läge på baren", 180, 24, function() BA:SetMode(editMode); refresh() end)
+	local show = UI.Button(p, "Show this mode on bar", 180, 24, function() BA:SetMode(editMode); refresh() end)
 	show:SetPoint("LEFT", pvp, "RIGHT", 12, 0)
-	autoCheck = UI.Check(p, "Auto-läge", function() return ns.char.autoMode end, function(v) ns.char.autoMode = v end,
-		"Byter automatiskt till PvP i battlegrounds/arenor och till PvE i dungeons/raider.")
+	autoCheck = UI.Check(p, "Auto mode", function() return ns.char.autoMode end, function(v) ns.char.autoMode = v end,
+		"Switches automatically to PvP in battlegrounds/arenas and to PvE in dungeons/raids.")
 	autoCheck:SetPoint("LEFT", show, "RIGHT", 12, 0)
 
-	local cl = UI.Label(p, "Call att använda:", "GameFontNormalSmall")
+	local cl = UI.Label(p, "Call to use:", "GameFontNormalSmall")
 	cl:SetPoint("LEFT", autoCheck.label, "RIGHT", 18, 0)
 	callDrop = UI.Dropdown(p, 170, function()
 		return ns.CALLS[ns.char.callSet or 1]
@@ -195,22 +195,22 @@ local function build(panel)
 	end, function(v) ns.char.callSet = v; apply() end)
 	callDrop:SetPoint("LEFT", cl, "RIGHT", 6, 0)
 
-	resetStep = UI.Stepper(p, "Sekvens-reset (s)", 3, 60, 1, function() return ns.char.seqReset or 10 end,
+	resetStep = UI.Stepper(p, "Sequence reset (s)", 3, 60, 1, function() return ns.char.seqReset or 10 end,
 		function(v) ns.char.seqReset = v; apply() end)
 	resetStep:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -12)
 	info = UI.Label(p, "", "GameFontHighlightSmall")
 	info:SetPoint("LEFT", resetStep, "RIGHT", 10, 0)
 	info:SetWidth(600)
 
-	local add = UI.Button(p, "+ Ny situation", 140, 24, function()
+	local add = UI.Button(p, "+ New situation", 140, 24, function()
 		local l = list()
-		if #l >= ns.MAX_SITUATIONS then ns.print("max %d situationer per läge.", ns.MAX_SITUATIONS) return end
-		table.insert(l, { name = "Ny", desc = "", totems = {} })
+		if #l >= ns.MAX_SITUATIONS then ns.print("max %d situations per mode.", ns.MAX_SITUATIONS) return end
+		table.insert(l, { name = "New", desc = "", totems = {} })
 		apply(); refresh()
 	end)
 	add:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 0, 0)
-	local reset = UI.Button(p, "Återställ standard", 150, 24, function()
-		UI.Confirm("Återställa alla " .. (editMode == "PVP" and "PvP" or "PvE") .. "-situationer till Farseers standard?", function()
+	local reset = UI.Button(p, "Reset to defaults", 150, 24, function()
+		UI.Confirm("Reset all " .. (editMode == "PVP" and "PvP" or "PvE") .. " situations to Farseer's defaults?", function()
 			ns.char.situations[editMode] = ns.copy(ns.DEFAULT_SITUATIONS[editMode])
 			apply(); refresh()
 		end)
@@ -218,4 +218,4 @@ local function build(panel)
 	reset:SetPoint("LEFT", add, "RIGHT", 8, 0)
 end
 
-UI.AddTab("situations", "Situationer", build, function() refresh() end)
+UI.AddTab("situations", "Situations", build, function() refresh() end)

@@ -121,8 +121,8 @@ function TO:CheckDeath(slot, prev)
 	local grounding = prev.name == "Grounding Totem"
 	local el = ns.Spellbook:TotemElement(prev.name)
 	ns.Alert:Flash("died-" .. prev.name, prev.name,
-		grounding and "GROUNDING ÅT EN SPELL!" or (prev.name:upper() .. " DOG!"),
-		grounding and "Lägg ett nytt Grounding Totem (cooldown 15 s)." or "Totemet förstördes i förtid — lägg om det.",
+		grounding and "GROUNDING ATE A SPELL!" or (prev.name:upper() .. " DIED!"),
+		grounding and "Drop a new Grounding Totem (15 s cooldown)." or "The totem was destroyed early — recast it.",
 		el and ns.ELEMENT_COLOR[el] or { 1, 0.4, 0.3 }, 3)
 	ns.fire("TOTEM_DIED", prev.name, slot)
 end
@@ -192,9 +192,9 @@ function TO:CheckRange()
 							r.warned = true
 							local el = ns.Spellbook:TotemElement(s.name)
 							local call = ns.Spellbook:Knows(ns.TOTEMIC_CALL)
-							ns.Alert:Flash("range-" .. slot, call and ns.TOTEMIC_CALL or s.name, "UTOM TOTEMRÄCKHÅLL",
-								s.name .. " når dig inte. " .. (call and "Tryck Totemic Call (flyttar totems till dig) eller gå närmare."
-									or "Gå närmare eller lägg om det."),
+							ns.Alert:Flash("range-" .. slot, call and ns.TOTEMIC_CALL or s.name, "OUT OF TOTEM RANGE",
+								s.name .. " isn't reaching you. " .. (call and "Press Totemic Call (moves your totems to you) or move closer."
+									or "Move closer or recast it."),
 								el and ns.ELEMENT_COLOR[el] or { 1, 0.5, 0.2 }, 3)
 							ns.fire("TOTEM_OUT_OF_RANGE", s.name, slot)
 						end
@@ -302,7 +302,7 @@ function TO:BuildBar()
 	local size = cfg.size or 34
 	bar:SetSize(size * 4 + 3 * 3, size)
 	ns.placeFrame(bar, cfg)
-	ns.makeMovable(bar, cfg, "Farseer: totem-timers")
+	ns.makeMovable(bar, cfg, "Farseer: totem timers")
 	for i, el in ipairs(ns.ELEMENTS) do
 		local slot = ns.SLOT[el]
 		local b = CreateFrame("Button", "FarseerTotem" .. el, bar, "SecureActionButtonTemplate")
@@ -338,10 +338,10 @@ function TO:BuildBar()
 			GameTooltip:SetOwner(self, "ANCHOR_TOP")
 			local name = TO:SlotTotem(self.slot)
 			if not (GameTooltip.SetTotem and pcall(GameTooltip.SetTotem, GameTooltip, self.slot)) or not name then
-				GameTooltip:SetText(ns.ELEMENT_NAME[self.el] .. "-totem")
-				GameTooltip:AddLine(name or "Inget totem ute", 1, 1, 1)
+				GameTooltip:SetText(ns.ELEMENT_NAME[self.el] .. " totem")
+				GameTooltip:AddLine(name or "No totem out", 1, 1, 1)
 			end
-			GameTooltip:AddLine("Högerklick: ta bort totemet", 0.6, 0.8, 1)
+			GameTooltip:AddLine("Right-click: destroy the totem", 0.6, 0.8, 1)
 			GameTooltip:Show()
 		end)
 		b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -366,8 +366,8 @@ function TO:BuildBar()
 	cb:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:SetText("Totemic Call")
-		GameTooltip:AddLine("Klick: flytta dina aktiva totems till dig. Lyser när ett totem är utom räckhåll.", 1, 1, 1, true)
-		GameTooltip:AddLine("Högerklick: Totemic Recall (plocka upp dem)", 0.6, 0.8, 1)
+		GameTooltip:AddLine("Click: move your active totems to you. Glows when a totem is out of range.", 1, 1, 1, true)
+		GameTooltip:AddLine("Right-click: Totemic Recall (pick them up)", 0.6, 0.8, 1)
 		GameTooltip:Show()
 	end)
 	cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -408,7 +408,7 @@ function TO:UpdateRangeMarks()
 	for slot, b in pairs(buttons) do
 		local out = self:OutOfRange(slot)
 		b.range:SetShown(out)
-		b.rangeText:SetText(out and "UTOM" or "")
+		b.rangeText:SetText(out and "OOR" or "")
 	end
 	if self.callButton then
 		if self:AnyOutOfRange() then self.callButton.glow:On() else self.callButton.glow:Off() end

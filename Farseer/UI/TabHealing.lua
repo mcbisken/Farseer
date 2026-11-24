@@ -16,7 +16,7 @@ local function rankLine(spell)
 	local max = list[#list] and list[#list].rank or want
 	local info
 	for _, r in ipairs(list) do if r.rank == want then info = r end end
-	local parts = { string.format("rank %d av %d", want, max) }
+	local parts = { string.format("rank %d of %d", want, max) }
 	if info then
 		table.insert(parts, "level " .. info.level)
 		if info.mana then table.insert(parts, info.mana .. " mana") end
@@ -30,7 +30,7 @@ end
 
 local function build(p)
 	-- Vänster: click-cast
-	local h = UI.Header(p, "Click casting (raid- och gruppramar)")
+	local h = UI.Header(p, "Click casting (raid and party frames)")
 	h:SetPoint("TOPLEFT", 4, -4)
 	availLabel = UI.Label(p, "", "GameFontHighlightSmall")
 	availLabel:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -6)
@@ -39,12 +39,12 @@ local function build(p)
 	for _, t in ipairs(ns.CLICKCAST) do
 		local name = UI.Label(p, t.name, "GameFontNormal")
 		name:SetPoint("TOPLEFT", last, "BOTTOMLEFT", 0, -12)
-		local use = UI.Button(p, "Använd", 80, 20, function()
+		local use = UI.Button(p, "Apply", 80, 20, function()
 			local ok, n, missing, note = ns.ClickCast:Apply(t.id)
-			local extra = (#missing > 0 and (" Saknas: " .. table.concat(missing, ", ") .. ".") or "") .. (note and (" " .. note) or "")
-			if ok then say(string.format("%s: %d bindningar satta.%s", t.name, n, extra))
-			else say("Gick inte: " .. tostring(note) .. "." .. extra, true) end
-		end, "Lägger mallen ovanpå din nuvarande click-cast. Samma knapp + modifierare ersätts, resten behålls.")
+			local extra = (#missing > 0 and (" Missing: " .. table.concat(missing, ", ") .. ".") or "") .. (note and (" " .. note) or "")
+			if ok then say(string.format("%s: %d bindings set.%s", t.name, n, extra))
+			else say("Failed: " .. tostring(note) .. "." .. extra, true) end
+		end, "Applies the template on top of your current click-cast. Same button + modifier is replaced, the rest is kept.")
 		use:SetPoint("LEFT", name, "LEFT", 330, 0)
 		local d = UI.Label(p, t.desc, "GameFontHighlightSmall")
 		d:SetPoint("TOPLEFT", name, "BOTTOMLEFT", 0, -3)
@@ -56,9 +56,9 @@ local function build(p)
 		bl:SetWidth(440)
 		last = bl
 	end
-	local restore = UI.Button(p, "Återställ spelets click-cast", 200, 22, function()
+	local restore = UI.Button(p, "Restore game click-cast", 200, 22, function()
 		local ok, err = ns.ClickCast:Restore()
-		if ok then say("Click-cast återställd till hur den var innan Farseer.") else say(tostring(err), true) end
+		if ok then say("Click-cast restored to how it was before Farseer.") else say(tostring(err), true) end
 	end)
 	restore:SetPoint("TOPLEFT", last, "BOTTOMLEFT", 0, -14)
 	status = UI.Label(p, "", "GameFontHighlight")
@@ -69,8 +69,8 @@ local function build(p)
 	local x = 480
 	local dh = UI.Header(p, "Downranking")
 	dh:SetPoint("TOPLEFT", p, "TOPLEFT", x, -4)
-	local dd = UI.Label(p, "Lägre rank = mindre heal men mycket mindre mana. Välj rank per spell; makrona "
-		.. "FS HW Low, FS LHW Low och FS CH Low castar den ranken på mouseover > target > dig.", "GameFontHighlightSmall")
+	local dd = UI.Label(p, "Lower rank = smaller heal but much less mana. Pick a rank per spell; the macros "
+		.. "FS HW Low, FS LHW Low and FS CH Low cast that rank on mouseover > target > you.", "GameFontHighlightSmall")
 	dd:SetPoint("TOPLEFT", dh, "BOTTOMLEFT", 0, -6)
 	dd:SetWidth(390)
 	local prev = dd
@@ -88,7 +88,7 @@ local function build(p)
 		rankRows[spell] = { stepper = st, info = info }
 		prev = info
 	end
-	local make = UI.Button(p, "Skapa downrank-makron", 180, 22, function()
+	local make = UI.Button(p, "Create downrank macros", 180, 22, function()
 		local made, errs = 0, {}
 		for _, spell in ipairs(ns.DOWNRANK_SPELLS) do
 			if ns.Spellbook:Knows(spell) then
@@ -97,11 +97,11 @@ local function build(p)
 			end
 		end
 		ns.fire("MACROS_CHANGED")
-		if #errs > 0 then say(table.concat(errs, "; "), true) else say(made .. " downrank-makron skapade/uppdaterade.") end
-	end, "Kräver att Forever-klienten förstår rank-syntaxen \"Healing Wave(Rank 4)\". Testa makrot innan du litar på det.")
+		if #errs > 0 then say(table.concat(errs, "; "), true) else say(made .. " downrank macros created/updated.") end
+	end, "Requires the Forever client to understand the rank syntax \"Healing Wave(Rank 4)\". Test the macro before relying on it.")
 	make:SetPoint("TOPLEFT", prev, "BOTTOMLEFT", 0, -14)
-	local note = UI.Label(p, "Manan läses ur spelet (utanför strid). Rank-texten tas från klienten, så makrona "
-		.. "fungerar även på icke-engelska klienter.", "GameFontDisableSmall")
+	local note = UI.Label(p, "Mana is read from the game (out of combat). The rank text comes from the client, so the macros "
+		.. "also work on non-English clients.", "GameFontDisableSmall")
 	note:SetPoint("TOPLEFT", make, "BOTTOMLEFT", 0, -8)
 	note:SetWidth(390)
 end
@@ -109,11 +109,11 @@ end
 local function refresh()
 	if ns.ClickCast:Available() then
 		local n = #ns.ClickCast:Current()
-		availLabel:SetText(string.format("Spelets Click Casting finns (%d bindningar nu). Mallen skrivs dit och gäller på "
-			.. "Blizzards raid- och gruppramar.%s", n, ns.char.clickBackup and " |cffffd100Farseer har ändrat — Återställ finns.|r" or ""))
+		availLabel:SetText(string.format("The game's Click Casting is available (%d bindings now). The template is written there and applies to "
+			.. "Blizzard's raid and party frames.%s", n, ns.char.clickBackup and " |cffffd100Changed by Farseer — Restore is available.|r" or ""))
 	else
-		availLabel:SetText("|cffff6060Klienten har inte Click Casting (C_ClickBindings).|r Mallarna går inte att skriva; "
-			.. "använd heal-makrona med @mouseover i stället.")
+		availLabel:SetText("|cffff6060The client doesn't have Click Casting (C_ClickBindings).|r The templates can't be written; "
+			.. "use the heal macros with @mouseover instead.")
 	end
 	for spell, r in pairs(rankRows) do
 		r.stepper:Refresh()

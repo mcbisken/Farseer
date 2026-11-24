@@ -21,7 +21,7 @@ function LV:AnnounceTrainer(level)
 	if not cfg().announce then return end
 	local list = ns.Spellbook:TrainerMissing(level)
 	if #list == 0 then return end
-	ns.print("|cffffd100%d|r nya ranker/spells väntar hos trainern: %s", #list, self:TrainerText(list))
+	ns.print("|cffffd100%d|r new ranks/spells waiting at the trainer: %s", #list, self:TrainerText(list))
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -51,7 +51,7 @@ function LV:WarnReagents()
 	for _, r in ipairs(self:Reagents()) do
 		if r.low and not warned[r.def.item] then
 			warned[r.def.item] = true
-			ns.print("|cffff8040lite %s kvar|r (%d) — behövs till %s.", r.def.name, r.count or 0, r.def.spell)
+			ns.print("|cffff8040low on %s|r (%d) — needed for %s.", r.def.name, r.count or 0, r.def.spell)
 		end
 	end
 end
@@ -130,42 +130,42 @@ function LV:Checklist()
 	local readable = not InCombatLockdown()
 	-- Sköld och imbue
 	if ns.Reminders.ShieldSpell and ns.Reminders:ShieldSpell() then
-		add(ns.Reminders:ShieldUp(), "Sköld uppe (" .. ns.Reminders:ShieldSpell() .. ")")
+		add(ns.Reminders:ShieldUp(), "Shield up (" .. ns.Reminders:ShieldSpell() .. ")")
 	end
 	if ns.Reminders.ImbueSpell and ns.Reminders:ImbueSpell() then
 		local has, left = ns.Reminders:Imbue()
 		local okI = has
 		if has and left and left < 10 * 60 then okI = false end
-		add(okI, "Vapen-imbue" .. (left and has and string.format(" (%d min kvar)", math.floor(left / 60)) or ""),
-			"Minst 10 minuter kvar.")
+		add(okI, "Weapon imbue" .. (left and has and string.format(" (%d min left)", math.floor(left / 60)) or ""),
+			"At least 10 minutes left.")
 	end
 	-- Mat och flaska/elixir
 	local buffs = readable and playerBuffs()
 	if buffs then
 		local food = anyMatch(buffs, ns.CHECK_FOOD)
-		add(food ~= nil, "Mat-buff" .. (food and (" (" .. food .. ")") or ""))
+		add(food ~= nil, "Food buff" .. (food and (" (" .. food .. ")") or ""))
 		local flask = anyMatch(buffs, ns.CHECK_FLASK)
-		add(flask ~= nil, "Flaska/elixir" .. (flask and (" (" .. flask .. ")") or ""))
+		add(flask ~= nil, "Flask/elixir" .. (flask and (" (" .. flask .. ")") or ""))
 	else
-		add(nil, "Mat-buff (kan inte läsas i strid)")
-		add(nil, "Flaska/elixir (kan inte läsas i strid)")
+		add(nil, "Food buff (can't read in combat)")
+		add(nil, "Flask/elixir (can't read in combat)")
 	end
 	-- Reagens
 	for _, r in ipairs(self:Reagents()) do
 		if r.def.spell == "Reincarnation" then
-			add(r.count ~= nil and not r.low, string.format("%s: %s", r.def.name, r.count or "?"), "Till " .. r.def.spell)
+			add(r.count ~= nil and not r.low, string.format("%s: %s", r.def.name, r.count or "?"), "For " .. r.def.spell)
 		end
 	end
 	-- Hållbarhet
 	local d = lowestDurability()
-	if d then add(d >= 30, string.format("Hållbarhet (lägst %d %%)", math.floor(d)), "Reparera under 30 %.") end
+	if d then add(d >= 30, string.format("Durability (lowest %d %%)", math.floor(d)), "Repair below 30 %.") end
 	-- Call of the Elements
 	local call, set
 	if ns.Bars.CallSpell then call, set = ns.Bars:CallSpell() end
 	if call then
 		local n = 0
 		for _ in pairs(ns.Totems:CallSetContents(set)) do n = n + 1 end
-		add(n > 0, string.format("%s laddad (%d totems)", call, n), "Högerklicka en situationsknapp för att ladda setet.")
+		add(n > 0, string.format("%s loaded (%d totems)", call, n), "Right-click a situation button to load the set.")
 	end
 	-- Hit-cap
 	local kind = self:HitKind()
@@ -175,12 +175,12 @@ function LV:Checklist()
 		local v, capv = (kind == "spell" and sh or mh), (kind == "spell" and cs or cm)
 		if v then
 			add(v >= capv, string.format("%s hit %.1f %% / %d %%", kind == "spell" and "Spell" or "Melee", v, capv),
-				"Hit-cap mot raidbossar (conquestcapped). Talanger räknas med om klienten tar med dem.")
+				"Hit cap vs raid bosses. Talents are included if the client reports them.")
 		end
 	end
 	-- Trainern
 	local missing = ns.Spellbook:TrainerMissing()
-	add(#missing == 0, #missing == 0 and "Alla ranker från trainern" or (#missing .. " ranker väntar hos trainern"),
+	add(#missing == 0, #missing == 0 and "All ranks from the trainer" or (#missing .. " ranks waiting at the trainer"),
 		#missing > 0 and self:TrainerText(missing) or nil)
 	return out
 end
@@ -234,7 +234,7 @@ local function buildWindow()
 	win:SetScript("OnDragStop", win.StopMovingOrSizing)
 	win:SetClampedToScreen(true)
 	UI.Backdrop(win, 0.94, { 0.25, 0.4, 0.65 })
-	local t = UI.Label(win, "Farseer: redo?", "GameFontNormalLarge", UI.GOLD)
+	local t = UI.Label(win, "Farseer: ready?", "GameFontNormalLarge", UI.GOLD)
 	t:SetPoint("TOPLEFT", 10, -8)
 	local close = UI.Button(win, "X", 22, 20, function() win:Hide() end)
 	close:SetPoint("TOPRIGHT", -6, -6)
@@ -255,7 +255,7 @@ function LV:ShowChecklist()
 			r:SetWidth(296)
 			win.rows[i] = r
 		end
-		local mark = item.ok == true and "|cff40ff40OK|r" or (item.ok == false and "|cffff4040SAKNAS|r" or "|cff999999?|r")
+		local mark = item.ok == true and "|cff40ff40OK|r" or (item.ok == false and "|cffff4040MISSING|r" or "|cff999999?|r")
 		r:SetText(mark .. "  " .. item.text)
 		r:Show()
 	end

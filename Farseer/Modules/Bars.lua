@@ -66,7 +66,7 @@ watch:SetScript("OnEvent", function(_, _, addon, fn)
 	if ns.isSecret(addon) or ns.isSecret(fn) then return end
 	if addon == ns.ADDON and type(fn) == "string" and fn:find("SetMultiCastSpell", 1, true) and not refused then
 		refused = true
-		ns.print("klienten blockerade att Farseer ändrar Call of the Elements. Högerklick lägger då det set som redan finns i Call.")
+		ns.print("the client blocked Farseer from changing Call of the Elements. Right-click will drop the set already in Call instead.")
 	end
 end)
 
@@ -136,20 +136,20 @@ local function sitTooltip(self)
 		local el = ns.Spellbook:TotemElement(name)
 		local c = el and ns.ELEMENT_COLOR[el] or { 0.6, 0.6, 0.6 }
 		local knows = ns.Spellbook:Knows(name)
-		GameTooltip:AddLine(string.format("%d. %s%s", i, name, knows and "" or "  |cffff4040(kan inte)|r"), c[1], c[2], c[3])
+		GameTooltip:AddLine(string.format("%d. %s%s", i, name, knows and "" or "  |cffff4040(not learned)|r"), c[1], c[2], c[3])
 	end
 	GameTooltip:AddLine(" ")
-	GameTooltip:AddLine("Vänsterklick: lägg nästa totem i ordningen", 0.6, 0.8, 1)
+	GameTooltip:AddLine("Left-click: drop the next totem in order", 0.6, 0.8, 1)
 	local call = BA:CallSpell()
 	if call then
-		GameTooltip:AddLine("Högerklick: hela setet med " .. call, 0.6, 0.8, 1)
+		GameTooltip:AddLine("Right-click: the full set with " .. call, 0.6, 0.8, 1)
 	else
-		GameTooltip:AddLine("Högerklick: samma som vänster (Call of the Elements kommer på level 20)", 0.6, 0.6, 0.6)
+		GameTooltip:AddLine("Right-click: same as left (Call of the Elements comes at level 20)", 0.6, 0.6, 0.6)
 	end
 	local k1 = ns.BindingEngine:KeyFor("CLICK FarseerSit" .. self.index .. ":LeftButton")
 	local k2 = ns.BindingEngine:KeyFor("CLICK FarseerSit" .. self.index .. ":RightButton")
-	if k1 or k2 then GameTooltip:AddLine("Tangent: " .. (k1 or "-") .. " / hela setet: " .. (k2 or "-"), 0.8, 0.8, 0.8) end
-	if self.reason then GameTooltip:AddLine("Rekommenderad: " .. self.reason, 0.3, 1, 0.3, true) end
+	if k1 or k2 then GameTooltip:AddLine("Key: " .. (k1 or "-") .. " / full set: " .. (k2 or "-"), 0.8, 0.8, 0.8) end
+	if self.reason then GameTooltip:AddLine("Recommended: " .. self.reason, 0.3, 1, 0.3, true) end
 	GameTooltip:Show()
 end
 
@@ -159,7 +159,7 @@ function BA:BuildSituationBar()
 	sitBar = CreateFrame("Frame", "FarseerSituationBar", UIParent)
 	sitBar:SetSize(size, size)
 	ns.placeFrame(sitBar, cfg)
-	sitBar.handle = ns.makeMovable(sitBar, cfg, "Farseer: situationer")
+	sitBar.handle = ns.makeMovable(sitBar, cfg, "Farseer: situations")
 	sitBar.mode = sitBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 	sitBar.mode:SetPoint("RIGHT", sitBar, "LEFT", -6, 0)
 	for i = 1, MAX do
@@ -190,8 +190,8 @@ function BA:BuildSituationBar()
 		end)
 		b:SetScript("OnEnter", sitTooltip)
 		b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-		_G["BINDING_NAME_CLICK FarseerSit" .. i .. ":LeftButton"] = "Situation " .. i .. ": nästa totem"
-		_G["BINDING_NAME_CLICK FarseerSit" .. i .. ":RightButton"] = "Situation " .. i .. ": hela setet (Call)"
+		_G["BINDING_NAME_CLICK FarseerSit" .. i .. ":LeftButton"] = "Situation " .. i .. ": next totem"
+		_G["BINDING_NAME_CLICK FarseerSit" .. i .. ":RightButton"] = "Situation " .. i .. ": full set (Call)"
 		sitButtons[i] = b
 	end
 end
@@ -283,7 +283,7 @@ function BA:BuildCounterBar()
 	cntBar = CreateFrame("Frame", "FarseerCounterBar", UIParent)
 	cntBar:SetSize(size, size)
 	ns.placeFrame(cntBar, cfg)
-	ns.makeMovable(cntBar, cfg, "Farseer: kontratotems")
+	ns.makeMovable(cntBar, cfg, "Farseer: counter totems")
 	for i = 1, 12 do
 		local b = CreateFrame("Button", "FarseerCounter" .. i, cntBar, "SecureActionButtonTemplate")
 		b:SetSize(size, size)
@@ -302,7 +302,7 @@ function BA:BuildCounterBar()
 			GameTooltip:Show()
 		end)
 		b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-		_G["BINDING_NAME_CLICK FarseerCounter" .. i .. ":LeftButton"] = "Kontratotem " .. i
+		_G["BINDING_NAME_CLICK FarseerCounter" .. i .. ":LeftButton"] = "Counter totem " .. i
 		cntButtons[i] = b
 	end
 end
@@ -401,8 +401,8 @@ function BA:SetMode(mode, quiet)
 	ns.char.mode = mode
 	self:ApplySituations()
 	if changed and not quiet then
-		ns.print("läge: %s%s", mode == "PVP" and "|cffff6060PvP|r" or "|cff60ff60PvE|r",
-			InCombatLockdown() and " (byts när striden är slut)" or "")
+		ns.print("mode: %s%s", mode == "PVP" and "|cffff6060PvP|r" or "|cff60ff60PvE|r",
+			InCombatLockdown() and " (switches after combat)" or "")
 	end
 	ns.fire("MODE_CHANGED", mode)
 end

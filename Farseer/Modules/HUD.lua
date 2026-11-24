@@ -95,7 +95,7 @@ function HU:Build()
 	frame = CreateFrame("Frame", "FarseerHUD", UIParent)
 	frame:SetSize(200, 40)
 	ns.placeFrame(frame, c)
-	ns.makeMovable(frame, c, "Farseer: strids-HUD")
+	ns.makeMovable(frame, c, "Farseer: combat HUD")
 	rangeText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	rangeText:SetPoint("BOTTOM", frame, "TOP", 0, 2)
 	fsBar = makeBar(frame, 0.95, 0.4, 0.1)
@@ -270,7 +270,7 @@ function HU:OnCast(name, castGUID)
 	if name == "Flame Shock" then
 		flame = { start = now, dur = ns.FLAME_SHOCK_DUR or 12, guid = ns.get(UnitGUID, "target") }
 	elseif name == "Riptide" then
-		riptides[who or "mål"] = now
+		riptides[who or "target"] = now
 	elseif name == "Chain Heal" and who then
 		riptides[who] = nil   -- Chain Heal förbrukar Riptiden på första målet
 	end

@@ -107,19 +107,19 @@ function PC:Build()
 	frame = CreateFrame("Frame", "FarseerProcs", UIParent)
 	frame:SetSize(200, 40)
 	ns.placeFrame(frame, c)
-	ns.makeMovable(frame, c, "Farseer: procs och larm")
-	local mw = makeIcon("maelstrom", "Maelstrom Weapon-stackar. Vid 5: lyser (och ljud om det går att läsa) — "
-		.. "nästa Lightning Bolt/Chain Lightning/heal blir instant.")
+	ns.makeMovable(frame, c, "Farseer: procs and alerts")
+	local mw = makeIcon("maelstrom", "Maelstrom Weapon stacks. At 5: glows (and plays a sound when readable) — "
+		.. "the next Lightning Bolt/Chain Lightning/heal is instant.")
 	mw.title = "Maelstrom Weapon"
 	mw.sensor = makeSensor(mw, ns.MAELSTROM_MAX or 5)
-	local sh = makeIcon("shield", "Laddningar kvar på skölden. Röd siffra = snart slut, lägg om.")
-	sh.title = "Sköld"
+	local sh = makeIcon("shield", "Charges left on your shield. Red number = running out, recast it.")
+	sh.title = "Shield"
 	makeIcon("purge", function(self)
 		local names = {}
 		for _, b in ipairs(self.buffs or {}) do table.insert(names, b.name or "?") end
-		return "Target har buffar som Purge tar bort:\n" .. table.concat(names, "\n")
+		return "Target has buffs that Purge removes:\n" .. table.concat(names, "\n")
 	end).title = "Purge"
-	makeIcon("assisted", "Blizzards förslag på nästa spell (Assisted Combat), om klienten har det.").title = "Förslag"
+	makeIcon("assisted", "Blizzard's suggestion for the next spell (Assisted Combat), if the client has it.").title = "Suggestion"
 	wfText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
 	wfText:SetPoint("BOTTOM", frame, "TOP", 0, 4)
 	wfText:SetTextColor(0.65, 0.87, 1)
@@ -349,15 +349,15 @@ end
 
 -- Bästa förslaget: spell, text
 function PC:ManaAdvice()
-	if ready("Mana Tide Totem") then return "Mana Tide Totem", "Lägg Mana Tide Totem (fyller gruppens mana i 12 s)." end
+	if ready("Mana Tide Totem") then return "Mana Tide Totem", "Drop Mana Tide Totem (restores your group's mana over 12 s)." end
 	if ns.Spellbook:Knows("Water Shield") then
 		local a = playerAura(ns.SHIELD_IDS["Water Shield"], "Water Shield")
-		if a == nil then return "Water Shield", "Byt till Water Shield — den ger mana när du blir träffad." end
+		if a == nil then return "Water Shield", "Switch to Water Shield — it gives mana when you're hit." end
 	end
 	if ns.Spellbook:Knows("Mana Spring Totem") and not ns.Totems:Active("Mana Spring Totem") then
-		return "Mana Spring Totem", "Lägg Mana Spring Totem."
+		return "Mana Spring Totem", "Drop Mana Spring Totem."
 	end
-	return nil, "Downranka healen, använd en mana potion eller drick efter striden."
+	return nil, "Downrank your heals, use a mana potion or drink after the fight."
 end
 
 function PC:CheckMana()
@@ -373,7 +373,7 @@ function PC:CheckMana()
 	if pct < limit and manaArmed then
 		manaArmed = false
 		local spell, text = self:ManaAdvice()
-		ns.Alert:Flash("lowmana", spell or "Mana Spring Totem", string.format("LÅG MANA (%d %%)", math.floor(pct)), text,
+		ns.Alert:Flash("lowmana", spell or "Mana Spring Totem", string.format("LOW MANA (%d %%)", math.floor(pct)), text,
 			{ 0.3, 0.55, 1 }, 4)
 	end
 end
@@ -426,7 +426,7 @@ function PC:UpdatePurge()
 		if not purgeWarned[key] then
 			purgeWarned[key] = true
 			ns.Alert:Flash("purge", "Purge", "PURGE: " .. tostring(list[1].name or "buff"):upper(),
-				"Target har " .. #list .. " buff(ar) som Purge tar bort.", { 0.75, 0.45, 1 }, 2.5)
+				"Target has " .. #list .. " buff(s) that Purge removes.", { 0.75, 0.45, 1 }, 2.5)
 		end
 	end
 end
@@ -457,8 +457,8 @@ function PC:OnUnitCast(event, unit)
 		casts[unit] = c
 		if cfg().enemyCastAlertPvp and ns.Bars:Mode() == "PVP" and c.notInt ~= true then
 			local kick = ns.Spellbook:Knows("Earth Shock") and "Earth Shock" or "Grounding Totem"
-			ns.Alert:Flash("cast-" .. unit, kick, "KICK! " .. (c.name and c.name:upper() or (UNIT_LABEL[unit]:upper() .. " CASTAR")),
-				"Earth Shock avbryter. Grounding Totem tar en spell som riktas mot dig.", { 1, 0.35, 0.2 }, 1.5)
+			ns.Alert:Flash("cast-" .. unit, kick, "KICK! " .. (c.name and c.name:upper() or (UNIT_LABEL[unit]:upper() .. " CASTING")),
+				"Earth Shock interrupts. Grounding Totem absorbs a spell aimed at you.", { 1, 0.35, 0.2 }, 1.5)
 		end
 	elseif event == "UNIT_SPELLCAST_NOT_INTERRUPTIBLE" then
 		if casts[unit] then casts[unit].notInt = true end
@@ -484,10 +484,10 @@ function PC:UpdateCast(now)
 	local c = cfg().enemyCasts and self:CurrentCast()
 	if not c then castBar:Hide() return end
 	local label = UNIT_LABEL[c.unit] or c.unit
-	local kick = c.notInt == true and "  |cff999999(kan inte avbrytas)|r"
+	local kick = c.notInt == true and "  |cff999999(can't be interrupted)|r"
 		or (ns.Spellbook:Knows("Earth Shock") and "  |cffff6040Earth Shock!|r" or "")
 	local left = c.ends and (c.ends - now)
-	castBar.text:SetText(string.format("%s: %s%s%s", label, c.name or "castar", left and string.format(" %.1f", left) or "", kick))
+	castBar.text:SetText(string.format("%s: %s%s%s", label, c.name or "casting", left and string.format(" %.1f", left) or "", kick))
 	if c.ends and c.ends > c.start then
 		local p = (now - c.start) / (c.ends - c.start)
 		castBar:SetValue(c.channel and (1 - p) or p)
@@ -523,7 +523,7 @@ local function categoryName(cat)
 		local n = ns.field(info, "name")
 		if type(n) == "string" then return n end
 	end
-	return "Kategori " .. tostring(cat)
+	return "Category " .. tostring(cat)
 end
 
 function PC:OnDiminish(unit, info)
@@ -552,7 +552,7 @@ function PC:Diminish(unit)
 	for cat, d in pairs(dr[key] or {}) do
 		local left = d.start + d.dur - now
 		if left > 0 then
-			local state = (d.immune or d.level >= 3) and "|cffff4040immun|r" or (d.level == 2 and "|cffffd10025 %|r" or "|cff40ff4050 %|r")
+			local state = (d.immune or d.level >= 3) and "|cffff4040immune|r" or (d.level == 2 and "|cffffd10025 %|r" or "|cff40ff4050 %|r")
 			table.insert(list, { name = categoryName(cat), text = state, left = left })
 		else
 			dr[key][cat] = nil
@@ -587,7 +587,7 @@ function PC:UpdateAssisted()
 	local id = cfg().assisted and self:Suggestion()
 	if not id then setShown(f, false) return end
 	f.icon:SetTexture(ns.get(C_Spell.GetSpellTexture, id) or 134400)
-	f.title = ns.get(C_Spell.GetSpellName, id) or "Förslag"
+	f.title = ns.get(C_Spell.GetSpellName, id) or "Suggestion"
 	setShown(f, true)
 end
 

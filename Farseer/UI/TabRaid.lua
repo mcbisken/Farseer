@@ -25,7 +25,7 @@ local function refresh()
 			local c = el and ns.ELEMENT_COLOR[el] or { 1, 1, 1 }
 			table.insert(names, ns.colorText((t:gsub(" Totem$", "")), c[1], c[2], c[3]))
 		end
-		r:SetText(string.format("%sGrupp %d|r (%s, %d melee/%d casters) — %s%s|r: %s",
+		r:SetText(string.format("%sGroup %d|r (%s, %d melee/%d casters) — %s%s|r: %s",
 			"|cffffd100", p.group, p.kind == "melee" and "melee" or "casters", p.melee, p.caster,
 			p.me and "|cff40c0ff" or "|cffffffff", p.shaman, table.concat(names, ", ")))
 		r:Show()
@@ -41,45 +41,45 @@ local function refresh()
 	if mine then
 		local names = {}
 		for _, t in ipairs(mine.totems) do table.insert(names, t) end
-		mineLabel:SetText("Ditt set: |cff40c0ff" .. table.concat(names, ", ") .. "|r")
+		mineLabel:SetText("Your set: |cff40c0ff" .. table.concat(names, ", ") .. "|r")
 	else
 		mineLabel:SetText("")
 	end
 end
 
 local function build(p)
-	local h = UI.Header(p, "Totemfördelning")
+	local h = UI.Header(p, "Totem assignments")
 	h:SetPoint("TOPLEFT", 4, -4)
-	local d = UI.Label(p, "Totems når bara din egen grupp. Förslaget ger varje shaman ett set efter gruppens "
-		.. "sammansättning (melee: Strength of Earth + Windfury, casters: Mana Spring + Stoneskin); flera shamans i samma "
-		.. "grupp får olika set. Addons får inte skicka meddelanden till varandra i instanser, så förslaget skickas som "
-		.. "vanlig chatt när du klickar.", "GameFontHighlightSmall")
+	local d = UI.Label(p, "Totems only reach your own group. The suggestion gives each shaman a set based on the group's "
+		.. "makeup (melee: Strength of Earth + Windfury, casters: Mana Spring + Stoneskin); several shamans in the same "
+		.. "group get different sets. Addons can't message each other in instances, so the suggestion is sent as "
+		.. "regular chat when you click.", "GameFontHighlightSmall")
 	d:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -6)
 	d:SetWidth(860)
 	list = CreateFrame("Frame", nil, p)
 	list:SetSize(860, 20)
 	list:SetPoint("TOPLEFT", d, "BOTTOMLEFT", 0, -12)
-	list.empty = UI.Label(list, "|cffaaaaaaInga shamans i gruppen. Gå med i en grupp eller raid och tryck Uppdatera.|r",
+	list.empty = UI.Label(list, "|cffaaaaaaNo shamans in the group. Join a group or raid and press Refresh.|r",
 		"GameFontHighlightSmall")
 	list.empty:SetPoint("TOPLEFT", 0, 0)
 	mineLabel = UI.Label(p, "", "GameFontHighlight")
 	mineLabel:SetPoint("TOPLEFT", list, "BOTTOMLEFT", 0, -14)
 	mineLabel:SetWidth(860)
-	local upd = UI.Button(p, "Uppdatera", 100, 22, refresh)
+	local upd = UI.Button(p, "Refresh", 100, 22, refresh)
 	upd:SetPoint("TOPLEFT", mineLabel, "BOTTOMLEFT", 0, -10)
-	local send = UI.Button(p, "Skicka i chatten", 130, 22, function()
+	local send = UI.Button(p, "Send to chat", 130, 22, function()
 		local ok, err = ns.RaidTotems:Send()
-		if ok then say(err or "Skickat.") else say(tostring(err), true) end
-	end, "Raid- eller gruppchatten. Blockeras chatten i instansen: kopiera texten i stället.")
+		if ok then say(err or "Sent.") else say(tostring(err), true) end
+	end, "Raid or party chat. If chat is blocked in the instance, copy the text instead.")
 	send:SetPoint("LEFT", upd, "RIGHT", 6, 0)
-	local copy = UI.Button(p, "Kopiera", 100, 22, function()
+	local copy = UI.Button(p, "Copy", 100, 22, function()
 		UI.CopyBox(table.concat(ns.RaidTotems:Lines(), " | "))
 	end)
 	copy:SetPoint("LEFT", send, "RIGHT", 6, 0)
-	local load = UI.Button(p, "Lägg mitt set i Call", 160, 22, function()
+	local load = UI.Button(p, "Put my set in Call", 160, 22, function()
 		local ok, err = ns.RaidTotems:LoadMine()
-		if ok then say("Ditt set ligger nu i Call of the Elements.") else say(tostring(err), true) end
-	end, "Skriver ditt föreslagna set till Call-spellen du valt på Situationer-fliken.")
+		if ok then say("Your set is now in Call of the Elements.") else say(tostring(err), true) end
+	end, "Writes your suggested set to the Call spell you chose on the Situations tab.")
 	load:SetPoint("LEFT", copy, "RIGHT", 6, 0)
 	status = UI.Label(p, "", "GameFontHighlight")
 	status:SetPoint("TOPLEFT", upd, "BOTTOMLEFT", 0, -10)

@@ -8,7 +8,7 @@ local _, ns = ...
 ns.SLOT = { FIRE = 1, EARTH = 2, WATER = 3, AIR = 4 }
 ns.SLOT_ELEMENT = { [1] = "FIRE", [2] = "EARTH", [3] = "WATER", [4] = "AIR" }
 ns.ELEMENTS = { "EARTH", "FIRE", "WATER", "AIR" }
-ns.ELEMENT_NAME = { EARTH = "Jord", FIRE = "Eld", WATER = "Vatten", AIR = "Luft" }
+ns.ELEMENT_NAME = { EARTH = "Earth", FIRE = "Fire", WATER = "Water", AIR = "Air" }
 ns.ELEMENT_COLOR = {
 	EARTH = { 0.78, 0.55, 0.25 },
 	FIRE = { 0.95, 0.38, 0.15 },
@@ -111,7 +111,7 @@ ns.RACIALS = { "Blood Fury", "Berserking", "War Stomp", "Stoneform" }
 
 -- Strids-HUD: cooldowns i den här ordningen (bara de du kan visas). range = tonas röd utom räckhåll.
 ns.HUD_SPELLS = {
-	{ spell = "Earth Shock", range = true, note = "Shocks delar cooldown" },
+	{ spell = "Earth Shock", range = true, note = "Shocks share a cooldown" },
 	{ spell = "Stormstrike", range = true },
 	{ spell = "Chain Lightning", range = true },
 	{ spell = "Riptide" },

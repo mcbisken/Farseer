@@ -182,7 +182,7 @@ function ME:Render(t)
 		local body
 		if t.build then
 			local ok, res = pcall(t.build, ctx)
-			body = ok and res or ("-- fel i mall: " .. tostring(res))
+			body = ok and res or ("-- template error: " .. tostring(res))
 		else
 			body = substitute(t.body or "", ctx)
 		end
@@ -220,38 +220,38 @@ end
 
 -- Skapar eller uppdaterar makrot. Returnerar true, "skapad"/"uppdaterad" eller false, felmeddelande
 function ME:Save(name, body, perChar)
-	if InCombatLockdown() then return false, "kan inte ändra makron i strid" end
+	if InCombatLockdown() then return false, "can't change macros in combat" end
 	name = ns.trim(name)
-	if name == "" then return false, "makrot saknar namn" end
-	if #name > self.MAX_NAME then return false, "namnet är längre än " .. self.MAX_NAME .. " tecken" end
-	if #body > self.MAX_BODY then return false, string.format("makrot är %d tecken (max %d)", #body, self.MAX_BODY) end
+	if name == "" then return false, "the macro has no name" end
+	if #name > self.MAX_NAME then return false, "the name is longer than " .. self.MAX_NAME .. " characters" end
+	if #body > self.MAX_BODY then return false, string.format("the macro is %d characters (max %d)", #body, self.MAX_BODY) end
 	local idx = self:Exists(name)
 	if idx then
 		local ok, err = pcall(EditMacro, idx, name, self.ICON, body)
 		if not ok then return false, tostring(err) end
-		return true, "uppdaterad"
+		return true, "updated"
 	end
 	local numAcc, numChar = GetNumMacros()
 	local maxAcc, maxChar = limits()
 	if perChar and numChar >= maxChar then
-		return false, "karaktärsmakron är fulla (" .. maxChar .. ")"
+		return false, "character macros are full (" .. maxChar .. ")"
 	elseif not perChar and numAcc >= maxAcc then
-		return false, "kontomakron är fulla (" .. maxAcc .. ")"
+		return false, "account macros are full (" .. maxAcc .. ")"
 	end
 	local ok, res = pcall(CreateMacro, name, self.ICON, body, perChar and true or nil)
 	if not ok then return false, tostring(res) end
-	if not res or res == 0 then return false, "klienten skapade inte makrot" end
-	return true, "skapad"
+	if not res or res == 0 then return false, "the client didn't create the macro" end
+	return true, "created"
 end
 
 function ME:CreateFromTemplate(id, quiet)
 	local t = byId[id]
-	if not t then return false, "okänd mall " .. tostring(id) end
+	if not t then return false, "unknown template " .. tostring(id) end
 	local body = self:Render(t)
 	local ok, msg = self:Save(t.name, body, ns.db.macros.perCharacter)
 	if ok and not ns.db.macros.perCharacter then self:ClaimAccountMacros() end
 	if not quiet then
-		if ok then ns.print("makro |cffffd100%s|r %s.", t.name, msg)
+		if ok then ns.print("macro |cffffd100%s|r %s.", t.name, msg)
 		else ns.print("|cffff4040%s|r: %s", t.name, msg) end
 	end
 	return ok, msg
@@ -264,7 +264,7 @@ function ME:CreateCategory(cat)
 			if self:CreateFromTemplate(t.id, true) then made = made + 1 else failed = failed + 1 end
 		end
 	end
-	ns.print("%s: %d makron skapade/uppdaterade%s.", cat, made, failed > 0 and (", " .. failed .. " misslyckades") or "")
+	ns.print("%s: %d macros created/updated%s.", cat, made, failed > 0 and (", " .. failed .. " failed") or "")
 	ns.fire("MACROS_CHANGED")
 end
 
@@ -327,7 +327,7 @@ function ME:OnShamanLogin()
 			pending = false
 			ns.afterCombat("macro-refresh", function()
 				local n = ME:RefreshExisting(true)
-				if n > 0 then ns.print("%d makron uppdaterade efter nya spells.", n) end
+				if n > 0 then ns.print("%d macros updated after new spells.", n) end
 			end)
 		end)
 	end)

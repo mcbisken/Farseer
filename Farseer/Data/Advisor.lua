@@ -6,12 +6,12 @@ local _, ns = ...
 ns.PVP_CLASS_RULES = {
 	WARLOCK = { { "Tremor Totem", 75, "Warlock: Fear / Howl of Terror" }, { "Grounding Totem", 55, "Warlock: Fear / Death Coil" } },
 	PRIEST = { { "Tremor Totem", 75, "Priest: Psychic Scream" }, { "Grounding Totem", 45, "Priest: Mind Blast / Mana Burn" } },
-	ROGUE = { { "Poison Cleansing Totem", 65, "Rogue: gifter" }, { "Earthbind Totem", 50, "Rogue: håll avstånd" } },
+	ROGUE = { { "Poison Cleansing Totem", 65, "Rogue: poisons" }, { "Earthbind Totem", 50, "Rogue: keep your distance" } },
 	HUNTER = { { "Poison Cleansing Totem", 60, "Hunter: Serpent/Viper Sting" }, { "Earthbind Totem", 50, "Hunter: pet & kiting" },
-		{ "Windwall Totem", 40, "Hunter: minskar pilskada" } },
+		{ "Windwall Totem", 40, "Hunter: reduces arrow damage" } },
 	MAGE = { { "Grounding Totem", 70, "Mage: Polymorph / Frostbolt" }, { "Earthbind Totem", 35, "Mage: blink-kiting" } },
-	WARRIOR = { { "Earthbind Totem", 60, "Warrior: kita med Earthbind" }, { "Stoneclaw Totem", 35, "Warrior: drar till sig attacker" } },
-	PALADIN = { { "Earthbind Totem", 50, "Paladin: kita" }, { "Poison Cleansing Totem", 20, "Paladin" } },
+	WARRIOR = { { "Earthbind Totem", 60, "Warrior: kite with Earthbind" }, { "Stoneclaw Totem", 35, "Warrior: draws attacks" } },
+	PALADIN = { { "Earthbind Totem", 50, "Paladin: kite" }, { "Poison Cleansing Totem", 20, "Paladin" } },
 	DRUID = { { "Grounding Totem", 55, "Druid: Entangling Roots / Hibernate" }, { "Earthbind Totem", 45, "Druid: feral" } },
 	SHAMAN = { { "Grounding Totem", 60, "Shaman: Lightning Bolt / Purge" }, { "Earthbind Totem", 30, "Shaman: Ghost Wolf" } },
 }
@@ -79,10 +79,10 @@ ns.BOSS_RULES = {
 	{ "Firemaw", "Fire Resistance Totem", "Firemaw: Flame Buffet" },
 	{ "Ebonroc", "Fire Resistance Totem", "Ebonroc: Wing Buffet" },
 	{ "Flamegor", "Fire Resistance Totem", "Flamegor: Fire Nova" },
-	{ "Ragnaros", "Fire Resistance Totem", "Ragnaros: eldskada" },
+	{ "Ragnaros", "Fire Resistance Totem", "Ragnaros: fire damage" },
 	{ "Sapphiron", "Frost Resistance Totem", "Sapphiron: Frost Aura" },
 	{ "Viscidus", "Frost Resistance Totem", "Viscidus: Frostbolt Volley" },
-	{ "Azuregos", "Frost Resistance Totem", "Azuregos: frostskada" },
+	{ "Azuregos", "Frost Resistance Totem", "Azuregos: frost damage" },
 	{ "Rage Winterchill", "Frost Resistance Totem", "Winterchill: Frost Nova / Icebolt" },
 	{ "Princess Huhuran", "Nature Resistance Totem", "Huhuran: Poison Bolt Volley" },
 	{ "Ysondre", "Nature Resistance Totem", "Ysondre: Lightning Wave" },
@@ -125,9 +125,9 @@ ns.DISPEL_MOBS = {
 
 -- Instans/zon -> resist-totem (lägre prioritet än bossregler)
 ns.ZONE_RULES = {
-	["Molten Core"] = { "Fire Resistance Totem", "Molten Core: eldskada överallt" },
-	["Blackwing Lair"] = { "Fire Resistance Totem", "Blackwing Lair: drakeld" },
-	["Onyxia's Lair"] = { "Fire Resistance Totem", "Onyxia's Lair: eldandning" },
+	["Molten Core"] = { "Fire Resistance Totem", "Molten Core: fire damage everywhere" },
+	["Blackwing Lair"] = { "Fire Resistance Totem", "Blackwing Lair: dragonfire" },
+	["Onyxia's Lair"] = { "Fire Resistance Totem", "Onyxia's Lair: fire breath" },
 }
 
 -- Gruppsammansättning (för "rekommenderad situation" i PvE)

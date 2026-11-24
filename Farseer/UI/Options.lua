@@ -65,7 +65,7 @@ local function build()
 	icon:SetTexture("Interface\\Icons\\Spell_Nature_BloodLust")
 	local title = UI.Label(main, "Farseer", "GameFontNormalHuge", { 0.2, 0.6, 1 })
 	title:SetPoint("LEFT", icon, "RIGHT", 10, 4)
-	local sub = UI.Label(main, "Shaman-addon för WoW: Forever  ·  v" .. ns.VERSION, "GameFontDisableSmall")
+	local sub = UI.Label(main, "Shaman addon for WoW: Forever  ·  v" .. ns.VERSION, "GameFontDisableSmall")
 	sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -2)
 
 	local close = UI.Button(main, "X", 26, 24, function() main:Hide() end)
@@ -154,7 +154,7 @@ function OP:BuildMinimap()
 	mini:SetScript("OnClick", function(_, button)
 		if button == "RightButton" then
 			ns.setLocked(not ns.char.locked)
-			ns.print(ns.char.locked and "bars låsta." or "bars upplåsta — dra för att flytta, högerklicka ikonen igen för att låsa.")
+			ns.print(ns.char.locked and "bars locked." or "bars unlocked — drag to move, right-click the icon again to lock.")
 		elseif button == "MiddleButton" then
 			if ns.Bars then ns.Bars:SetMode(ns.Bars:Mode() == "PVP" and "PVE" or "PVP") end
 		else
@@ -193,9 +193,9 @@ function OP:RegisterSettings()
 	local panel = CreateFrame("Frame")
 	local t = UI.Label(panel, "Farseer", "GameFontNormalHuge", { 0.2, 0.6, 1 })
 	t:SetPoint("TOPLEFT", 16, -16)
-	local d = UI.Label(panel, "Alla inställningar finns i Farseers eget fönster.")
+	local d = UI.Label(panel, "All settings are in Farseer's own window.")
 	d:SetPoint("TOPLEFT", t, "BOTTOMLEFT", 0, -8)
-	local b = UI.Button(panel, "Öppna Farseer", 160, 26, function()
+	local b = UI.Button(panel, "Open Farseer", 160, 26, function()
 		if SettingsPanel and SettingsPanel.Close then pcall(SettingsPanel.Close, SettingsPanel, true) end
 		OP:Open()
 	end)
@@ -212,12 +212,12 @@ function Farseer_OnCompartmentEnter(_, frame, owned)
 	if not owned then GameTooltip:SetOwner(frame or UIParent, "ANCHOR_LEFT") end
 	GameTooltip:SetText("Farseer")
 	local mode = ns.Bars and ns.Bars:Mode() or "PVE"
-	GameTooltip:AddLine("Läge: " .. (mode == "PVP" and "|cffff6060PvP|r" or "|cff60ff60PvE|r"), 1, 1, 1)
+	GameTooltip:AddLine("Mode: " .. (mode == "PVP" and "|cffff6060PvP|r" or "|cff60ff60PvE|r"), 1, 1, 1)
 	GameTooltip:AddLine(" ")
-	GameTooltip:AddLine("Vänsterklick: inställningar", 0.6, 0.8, 1)
-	GameTooltip:AddLine("Högerklick: lås upp / lås bars", 0.6, 0.8, 1)
-	GameTooltip:AddLine("Mittenklick: växla PvE/PvP", 0.6, 0.8, 1)
-	GameTooltip:AddLine("Dra: flytta ikonen", 0.6, 0.6, 0.6)
+	GameTooltip:AddLine("Left-click: settings", 0.6, 0.8, 1)
+	GameTooltip:AddLine("Right-click: unlock / lock bars", 0.6, 0.8, 1)
+	GameTooltip:AddLine("Middle-click: toggle PvE/PvP", 0.6, 0.8, 1)
+	GameTooltip:AddLine("Drag: move the icon", 0.6, 0.6, 0.6)
 	GameTooltip:Show()
 end
 

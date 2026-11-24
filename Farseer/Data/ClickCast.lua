@@ -5,8 +5,8 @@
 local _, ns = ...
 
 ns.CLICKCAST = {
-	{ id = "heal_mods", name = "Healer: modifierare",
-		desc = "Vanligt klick väljer mål och öppnar menyn som förut. Shift, Ctrl och Alt + klick healar och renar.",
+	{ id = "heal_mods", name = "Healer: modifiers",
+		desc = "Plain click targets and opens the menu as before. Shift, Ctrl and Alt + click heal and cleanse.",
 		binds = {
 			{ "LeftButton", "shift", "Lesser Healing Wave" },
 			{ "RightButton", "shift", "Healing Wave" },
@@ -16,8 +16,8 @@ ns.CLICKCAST = {
 			{ "RightButton", "alt", "Cure Disease" },
 			{ "MiddleButton", "", "Riptide" },
 		} },
-	{ id = "heal_direct", name = "Healer: direktklick",
-		desc = "Klick healar direkt (vänster LHW, höger Chain Heal, mitten Riptide). Ctrl + vänster väljer mål, Ctrl + höger öppnar menyn.",
+	{ id = "heal_direct", name = "Healer: direct click",
+		desc = "Click heals directly (left LHW, right Chain Heal, middle Riptide). Ctrl + left targets, Ctrl + right opens the menu.",
 		binds = {
 			{ "LeftButton", "", "Lesser Healing Wave" },
 			{ "RightButton", "", "Chain Heal" },
@@ -28,8 +28,8 @@ ns.CLICKCAST = {
 			{ "LeftButton", "ctrl", interaction = "target" },
 			{ "RightButton", "ctrl", interaction = "menu" },
 		} },
-	{ id = "offheal", name = "Elemental/Enhancement: nödheal",
-		desc = "För dps-shamans: Shift + klick Lesser Healing Wave, Shift + höger Healing Wave, Alt + klick renar.",
+	{ id = "offheal", name = "Elemental/Enhancement: emergency heal",
+		desc = "For DPS shamans: Shift + click Lesser Healing Wave, Shift + right Healing Wave, Alt + click cleanses.",
 		binds = {
 			{ "LeftButton", "shift", "Lesser Healing Wave" },
 			{ "RightButton", "shift", "Healing Wave" },

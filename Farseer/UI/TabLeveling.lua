@@ -12,7 +12,7 @@ local function build(p)
 	local c = ns.char.leveling
 
 	-- Vänster: trainern
-	local h = UI.Header(p, "Trainern")
+	local h = UI.Header(p, "Trainer")
 	h:SetPoint("TOPLEFT", 4, -4)
 	local sf
 	sf, trainerContent = UI.Scroll(p, 410, UI.HEIGHT - 40)
@@ -34,22 +34,22 @@ local function build(p)
 	local s2 = track(UI.Stepper(p, "Melee hit-cap (%)", 1, 20, 1, function() return c.hitMelee end, function(v) c.hitMelee = v end))
 	s2:SetPoint("TOPLEFT", s1, "BOTTOMLEFT", 0, -2)
 
-	local rh = UI.Header(p, "Reagens")
+	local rh = UI.Header(p, "Reagents")
 	rh:SetPoint("TOPLEFT", s2, "BOTTOMLEFT", 0, -14)
 	reagentText = UI.Label(p, "", "GameFontHighlight")
 	reagentText:SetPoint("TOPLEFT", rh, "BOTTOMLEFT", 0, -6)
 	reagentText:SetWidth(400)
 
-	local ch = UI.Header(p, "Checklista före raid")
+	local ch = UI.Header(p, "Pre-raid checklist")
 	ch:SetPoint("TOPLEFT", reagentText, "BOTTOMLEFT", 0, -14)
-	local show = UI.Button(p, "Visa checklistan", 150, 24, function() LV:ShowChecklist() end,
-		"Sköld, imbue, mat, flaska, Ankh, hållbarhet, Call-set, hit-cap och trainern. Även /farseer check.")
+	local show = UI.Button(p, "Show checklist", 150, 24, function() LV:ShowChecklist() end,
+		"Shield, imbue, food, flask, Ankh, durability, Call set, hit cap and trainer. Also /farseer check.")
 	show:SetPoint("TOPLEFT", ch, "BOTTOMLEFT", 0, -6)
 	local opts = {
-		{ "Visa vid ready check", "readyCheck" },
-		{ "Visa när jag går in i en raid", "checklist" },
-		{ "Skriv nya trainer-ranker i chatten", "announce" },
-		{ "Varna när reagens tar slut", "reagents" },
+		{ "Show on ready check", "readyCheck" },
+		{ "Show when I enter a raid", "checklist" },
+		{ "Print new trainer ranks in chat", "announce" },
+		{ "Warn when reagents run out", "reagents" },
 	}
 	local last = show
 	for i, o in ipairs(opts) do
@@ -69,9 +69,9 @@ local function refresh()
 	local lines = {}
 	local missing = SB:TrainerMissing(level)
 	if #missing == 0 then
-		table.insert(lines, "|cff40ff40Du har allt trainern kan lära dig på level " .. level .. ".|r")
+		table.insert(lines, "|cff40ff40You have everything the trainer can teach you at level " .. level .. ".|r")
 	else
-		table.insert(lines, "|cffffd100Väntar hos trainern nu:|r")
+		table.insert(lines, "|cffffd100Waiting at the trainer now:|r")
 		for _, r in ipairs(missing) do
 			local tag = r.source == "tome" and " |cffaaaaaa(tome)|r" or (r.source == "quest" and " |cffaaaaaa(quest)|r" or "")
 			table.insert(lines, string.format("  %s  rank %d  |cffaaaaaa(level %d)|r%s", r.spell, r.rank, r.level, tag))
@@ -83,7 +83,7 @@ local function refresh()
 	table.sort(levels)
 	if #levels > 0 then
 		table.insert(lines, " ")
-		table.insert(lines, "|cffffd100Kommande levels:|r")
+		table.insert(lines, "|cffffd100Upcoming levels:|r")
 		for _, l in ipairs(levels) do
 			local names = {}
 			for _, r in ipairs(up[l]) do table.insert(names, r.spell .. " " .. r.rank) end
@@ -91,7 +91,7 @@ local function refresh()
 		end
 	end
 	table.insert(lines, " ")
-	table.insert(lines, "|cffaaaaaaKällor: wclbox, method.gg, conquestcapped (kontrollerade " .. (ns.TRAINER and ns.TRAINER.checked or "?") .. ").|r")
+	table.insert(lines, "|cffaaaaaaSources: wclbox, method.gg, conquestcapped (checked " .. (ns.TRAINER and ns.TRAINER.checked or "?") .. ").|r")
 	trainerText:SetText(table.concat(lines, "\n"))
 	-- Rader som bryts blir högre än 14 px: använd textens verkliga höjd
 	local th = trainerText.GetStringHeight and trainerText:GetStringHeight()
@@ -101,30 +101,30 @@ local function refresh()
 	local sh, mh = LV:Hit()
 	local cs, cm = LV:HitCaps()
 	local function line(label, v, cap, active)
-		if not v then return label .. ": |cff999999kan inte läsas|r" end
+		if not v then return label .. ": |cff999999can't be read|r" end
 		local col = v >= cap and "|cff40ff40" or "|cffff8040"
-		return string.format("%s%s: %s%.1f %%|r av %d %%", active and "> " or "", label, col, v, cap)
+		return string.format("%s%s: %s%.1f %%|r of %d %%", active and "> " or "", label, col, v, cap)
 	end
 	local kind = LV:HitKind()
 	hitText:SetText(line("Spell hit", sh, cs, kind == "spell") .. "\n" .. line("Melee hit", mh, cm, kind == "melee")
-		.. "\n|cffaaaaaaSpec väljs på BiS-fliken. Resto behöver ingen hit.|r")
+		.. "\n|cffaaaaaaSpec is chosen on the BiS tab. Resto needs no hit.|r")
 
 	-- Reagens
 	if LV:ReagentFree() then
-		reagentText:SetText("|cff40ff40Reagent Economy: dina spells behöver inga reagens.|r")
+		reagentText:SetText("|cff40ff40Reagent Economy: your spells need no reagents.|r")
 	else
 		local out = {}
 		for _, r in ipairs(LV:Reagents()) do
 			local col = r.low and "|cffff6060" or "|cff40ff40"
 			table.insert(out, string.format("%s: %s%s|r  |cffaaaaaa(%s)|r", r.def.name, col, tostring(r.count or "?"), r.def.spell))
 		end
-		reagentText:SetText(#out > 0 and table.concat(out, "\n") or "|cffaaaaaaInga spells som kräver reagens än.|r")
+		reagentText:SetText(#out > 0 and table.concat(out, "\n") or "|cffaaaaaaNo spells that require reagents yet.|r")
 	end
 	-- Checklistans status (kort)
 	local list = LV:Checklist()
 	local bad = 0
 	for _, it in ipairs(list) do if it.ok == false then bad = bad + 1 end end
-	checkText:SetText(bad == 0 and "|cff40ff40Allt klart just nu.|r" or ("|cffff8040" .. bad .. " saker saknas just nu.|r"))
+	checkText:SetText(bad == 0 and "|cff40ff40All set right now.|r" or ("|cffff8040" .. bad .. " items missing right now.|r"))
 end
 
-UI.AddTab("leveling", "Utveckling", build, refresh)
+UI.AddTab("leveling", "Leveling", build, refresh)

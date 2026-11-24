@@ -142,7 +142,7 @@ test("HUD: Flame Shock, Riptide, swing", function()
 	MOCK.fire("UNIT_SPELLCAST_SENT", "player", SECRET, "castR2", MOCK.known["Riptide"])
 	MOCK.fire("UNIT_SPELLCAST_SUCCEEDED", "player", "castR2", MOCK.known["Riptide"])
 	ns.HUD:UpdateTimers()
-	check(rip.__text:find("mål"), "okänt mål: " .. tostring(rip.__text))
+	check(rip.__text:find("target"), "okänt mål: " .. tostring(rip.__text))
 	MOCK.time = MOCK.time + 16
 	ns.HUD:UpdateTimers()
 	-- swing
@@ -418,7 +418,7 @@ test("trainer: nya ranker", function()
 	MOCK.fire("PLAYER_LEVEL_UP", 26)
 	MOCK.runTimers()
 	local said = false
-	for i = before + 1, #MOCK.printed do if MOCK.printed[i]:find("trainern") then said = true end end
+	for i = before + 1, #MOCK.printed do if MOCK.printed[i]:find("trainer") then said = true end end
 	check(said, "meddelande vid level up")
 	-- tillbaka
 	wipe(MOCK.known)
@@ -464,10 +464,10 @@ test("reagens, hit och checklista", function()
 	local list = LV:ShowChecklist()
 	local byText = {}
 	for _, it in ipairs(list) do byText[it.text:match("^[^%(]+")] = it.ok end
-	check(byText["Sköld uppe "] == true, "sköld OK")
-	check(byText["Mat-buff "] == true and byText["Flaska/elixir "] == true, "mat och flaska")
+	check(byText["Shield up "] == true, "sköld OK")
+	check(byText["Food buff "] == true and byText["Flask/elixir "] == true, "mat och flaska")
 	local dur
-	for _, it in ipairs(list) do if it.text:find("Hållbarhet") then dur = it end end
+	for _, it in ipairs(list) do if it.text:find("Durability") then dur = it end end
 	check(dur and dur.ok == false and dur.text:find("10"), "hållbarhet 10 %")
 	local hit
 	for _, it in ipairs(list) do if it.text:find("Spell hit") then hit = it end end
@@ -520,8 +520,8 @@ test("BiS: jämförelse med utrustningen", function()
 	local function walk(w)
 		for _, c in ipairs(w.__children or {}) do
 			if c.__kind == "FontString" and type(c.__text) == "string" then
-				if c.__text:find("BiS på") then foundBis = true end
-				if c.__text:find("Nästa uppgraderingar") and c.__text:find("Axlar") and not c.__text:find("Huvud") then foundUp = true end
+				if c.__text:find("BiS on") then foundBis = true end
+				if c.__text:find("Next upgrades") and c.__text:find("Shoulders") and not c.__text:find("Head") then foundUp = true end
 			end
 			walk(c)
 		end

@@ -13,7 +13,7 @@ end
 ns.BINDING_PRESETS = {
 	{
 		id = "elemental", name = "Elemental (WASD)",
-		desc = "Caster-layout: skada på 1–6, burst på Q, totems på E/R/F, situationer på T/G/Y/H.",
+		desc = "Caster layout: damage on 1–6, burst on Q, totems on E/R/F, situations on T/G/Y/H.",
 		binds = {
 			{ "1", macro = "ele_bolt" }, { "2", macro = "ele_chain" }, { "3", macro = "ele_flame" },
 			{ "4", macro = "pvp_kick" }, { "5", macro = "ele_frost" }, { "6", macro = "pvp_purge" },
@@ -27,7 +27,7 @@ ns.BINDING_PRESETS = {
 	},
 	{
 		id = "enhancement", name = "Enhancement (WASD)",
-		desc = "Melee-layout: Stormstrike på 1, shocks på 2, Maelstrom-bolt på 3, burst på Q.",
+		desc = "Melee layout: Stormstrike on 1, shocks on 2, Maelstrom bolt on 3, burst on Q.",
 		binds = {
 			{ "1", macro = "enh_ss" }, { "2", macro = "enh_shock" }, { "3", macro = "enh_mw" },
 			{ "4", macro = "pvp_kick" }, { "5", macro = "pvp_purge" }, { "6", macro = "tot_nova" },
@@ -41,7 +41,7 @@ ns.BINDING_PRESETS = {
 	},
 	{
 		id = "restoration", name = "Restoration (mouseover)",
-		desc = "Healer-layout för mouseover på raid-/partyramar. Heals på 1–5, cleanse på 6.",
+		desc = "Healer layout for mouseover on raid/party frames. Heals on 1–5, cleanse on 6.",
 		binds = {
 			{ "1", macro = "res_hw" }, { "2", macro = "res_lhw" }, { "3", macro = "res_ch" },
 			{ "4", macro = "res_rt" }, { "5", macro = "res_ns" }, { "6", macro = "util_cure" },
@@ -54,8 +54,8 @@ ns.BINDING_PRESETS = {
 		},
 	},
 	{
-		id = "pvp", name = "PvP (alla specs)",
-		desc = "Snabba kontratotems (Grounding, Tremor, Earthbind) och focus-interrupt nära WASD.",
+		id = "pvp", name = "PvP (all specs)",
+		desc = "Quick counter totems (Grounding, Tremor, Earthbind) and focus interrupt near WASD.",
 		binds = {
 			{ "1", macro = "ele_bolt" }, { "2", macro = "pvp_frost" }, { "3", macro = "pvp_kick" },
 			{ "4", macro = "pvp_purge" }, { "5", macro = "pvp_ground" }, { "6", macro = "pvp_tremor" },
@@ -68,8 +68,8 @@ ns.BINDING_PRESETS = {
 		},
 	},
 	{
-		id = "situations", name = "Bara situationsknappar",
-		desc = "Rör inget annat: situation 1–8 på Shift+F1–F8 (lägg nästa totem) och Ctrl+F1–F8 (hela setet).",
+		id = "situations", name = "Situation buttons only",
+		desc = "Touches nothing else: situation 1–8 on Shift+F1–F8 (drop next totem) and Ctrl+F1–F8 (whole set).",
 		binds = (function()
 			local t = {}
 			for i = 1, 8 do
@@ -80,8 +80,8 @@ ns.BINDING_PRESETS = {
 		end)(),
 	},
 	{
-		id = "mouse", name = "Musknappar (sidoknappar)",
-		desc = "Sidoknapp 4: Kick. Sidoknapp 5: Grounding. Shift+sidoknapp: Tremor / Earthbind.",
+		id = "mouse", name = "Mouse buttons (side buttons)",
+		desc = "Side button 4: Kick. Side button 5: Grounding. Shift+side button: Tremor / Earthbind.",
 		binds = {
 			{ "BUTTON4", macro = "pvp_kick" }, { "BUTTON5", macro = "pvp_ground" },
 			{ "SHIFT-BUTTON4", macro = "pvp_tremor" }, { "SHIFT-BUTTON5", macro = "pvp_ebind" },

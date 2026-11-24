@@ -255,8 +255,8 @@ end
 function UI.Confirm(text, onYes)
 	StaticPopupDialogs.FARSEER_CONFIRM = {
 		text = (tostring(text):gsub("%%", "%%%%")), -- texten formateras av StaticPopup: "%" i namn får inte tolkas
-		button1 = YES or "Ja",
-		button2 = NO or "Nej",
+		button1 = YES or "Yes",
+		button2 = NO or "No",
 		OnAccept = function() onYes() end,
 		timeout = 0,
 		whileDead = true,
@@ -269,8 +269,8 @@ end
 -- Text som kan kopieras (t.ex. en länk)
 function UI.CopyBox(text)
 	StaticPopupDialogs.FARSEER_COPY = {
-		text = "Kopiera med Ctrl+C:",
-		button1 = CLOSE or "Stäng",
+		text = "Press Ctrl+C to copy:",
+		button1 = CLOSE or "Close",
 		hasEditBox = true,
 		editBoxWidth = 320,
 		OnShow = function(self)

@@ -89,8 +89,8 @@ local function makeButton(name, label)
 	b:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:SetText(self.spell or label)
-		GameTooltip:AddLine(self.why or "Allt är som det ska.", 1, 1, 1, true)
-		GameTooltip:AddLine("Klick: casta " .. (self.spell or "-"), 0.6, 0.8, 1)
+		GameTooltip:AddLine(self.why or "All good.", 1, 1, 1, true)
+		GameTooltip:AddLine("Click: cast " .. (self.spell or "-"), 0.6, 0.8, 1)
 		GameTooltip:Show()
 	end)
 	b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -103,13 +103,13 @@ function RE:Build()
 	bar = CreateFrame("Frame", "FarseerReminderBar", UIParent)
 	bar:SetSize(size * 2 + 8, size)
 	ns.placeFrame(bar, cfg)
-	ns.makeMovable(bar, cfg, "Farseer: påminnelser")
-	shieldBtn = makeButton("FarseerShieldButton", "Sköld")
+	ns.makeMovable(bar, cfg, "Farseer: reminders")
+	shieldBtn = makeButton("FarseerShieldButton", "Shield")
 	shieldBtn:SetPoint("LEFT", bar, "LEFT", 0, 0)
 	imbueBtn = makeButton("FarseerImbueButton", "Imbue")
 	imbueBtn:SetPoint("LEFT", shieldBtn, "RIGHT", 8, 0)
-	_G["BINDING_NAME_CLICK FarseerShieldButton:LeftButton"] = "Sköld (Lightning/Water Shield)"
-	_G["BINDING_NAME_CLICK FarseerImbueButton:LeftButton"] = "Vapen-imbue"
+	_G["BINDING_NAME_CLICK FarseerShieldButton:LeftButton"] = "Shield (Lightning/Water Shield)"
+	_G["BINDING_NAME_CLICK FarseerImbueButton:LeftButton"] = "Weapon imbue"
 end
 
 function RE:ApplySpells()
@@ -154,8 +154,8 @@ function RE:Check()
 		local up = self:ShieldUp()
 		if up ~= nil then status.shield = up end
 		local low = status.shield ~= false and status.chargesLow and ns.char.procs and ns.char.procs.shield
-		local why = status.shield == false and "Ingen sköld uppe!"
-			or (low and string.format("Bara %d laddning(ar) kvar — lägg om skölden.", status.charges or 0)) or nil
+		local why = status.shield == false and "No shield up!"
+			or (low and string.format("Only %d charge(s) left — recast your shield.", status.charges or 0)) or nil
 		paint(shieldBtn, (status.shield == false or low) and not dead, why)
 	else
 		paint(shieldBtn, false)
@@ -165,8 +165,8 @@ function RE:Check()
 		if has ~= nil then status.imbue, status.imbueLeft = has, left end
 		local low = status.imbue and status.imbueLeft and status.imbueLeft < (cfg.imbueMinutes or 5) * 60
 		local why
-		if status.imbue == false then why = "Ingen imbue på vapnet!"
-		elseif low then why = string.format("Imbue går ut om %d min", math.ceil(status.imbueLeft / 60)) end
+		if status.imbue == false then why = "No imbue on your weapon!"
+		elseif low then why = string.format("Imbue expires in %d min", math.ceil(status.imbueLeft / 60)) end
 		paint(imbueBtn, (status.imbue == false or low) and not dead, why)
 	else
 		paint(imbueBtn, false)

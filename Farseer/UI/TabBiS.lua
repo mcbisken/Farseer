@@ -4,17 +4,17 @@ local _, ns = ...
 local UI = ns.UI
 
 local SLOT_NAME = {
-	HEAD = "Huvud", NECK = "Hals", SHOULDER = "Axlar", BACK = "Mantel", CHEST = "Bröst", WRIST = "Handleder",
-	HANDS = "Händer", WAIST = "Midja", LEGS = "Ben", FEET = "Fötter", FINGER1 = "Ring 1", FINGER2 = "Ring 2",
-	TRINKET1 = "Trinket 1", TRINKET2 = "Trinket 2", MAINHAND = "Vapen", OFFHAND = "Offhand/sköld", RELIC = "Totem",
+	HEAD = "Head", NECK = "Neck", SHOULDER = "Shoulders", BACK = "Back", CHEST = "Chest", WRIST = "Wrists",
+	HANDS = "Hands", WAIST = "Waist", LEGS = "Legs", FEET = "Feet", FINGER1 = "Ring 1", FINGER2 = "Ring 2",
+	TRINKET1 = "Trinket 1", TRINKET2 = "Trinket 2", MAINHAND = "Weapon", OFFHAND = "Off-hand/shield", RELIC = "Totem",
 }
 local SOURCE = {
 	dungeon = { "Dungeon", { 0.4, 0.8, 1 } }, raid = { "Raid", { 1, 0.5, 0.2 } }, quest = { "Quest", { 1, 0.85, 0.2 } },
-	crafted = { "Crafting", { 0.4, 1, 0.4 } }, reputation = { "Rykte", { 0.9, 0.6, 1 } }, vendor = { "Försäljare", { 1, 1, 0.6 } },
-	pvp = { "PvP", { 1, 0.35, 0.35 } }, world = { "Världsdrop", { 0.8, 0.8, 0.8 } },
+	crafted = { "Crafting", { 0.4, 1, 0.4 } }, reputation = { "Reputation", { 0.9, 0.6, 1 } }, vendor = { "Vendor", { 1, 1, 0.6 } },
+	pvp = { "PvP", { 1, 0.35, 0.35 } }, world = { "World drop", { 0.8, 0.8, 0.8 } },
 }
 local SPECS = { { "elemental", "Elemental" }, { "enhancement", "Enhancement" }, { "restoration", "Restoration" } }
-local PHASES = { { "prebis", "Pre-raid (dungeons)" }, { "phase1", "Fas 1 (raider)" } }
+local PHASES = { { "prebis", "Pre-raid (dungeons)" }, { "phase1", "Phase 1 (raids)" } }
 
 -- BiS-slot -> utrustningsslottar (ringar/trinkets: båda)
 local INV = {
@@ -39,7 +39,7 @@ local function compare(e)
 end
 
 local STATUS = {
-	bis = "|cff40ff40BiS på|r", alt = "|cffffd100Alt på|r", other = "|cffff6060Uppgradera|r", empty = "|cffff6060Tom|r",
+	bis = "|cff40ff40BiS on|r", alt = "|cffffd100Alt on|r", other = "|cffff6060Upgrade|r", empty = "|cffff6060Empty|r",
 }
 
 local content, rows, summary, specButtons, phaseButtons, notes = nil, {}, nil, {}, {}, nil
@@ -48,9 +48,9 @@ local pendingRefresh = false
 
 local function owned(id)
 	if not id then return false end
-	if C_Item and C_Item.IsEquippedItem and ns.get(C_Item.IsEquippedItem, id) == true then return true, "på dig" end
+	if C_Item and C_Item.IsEquippedItem and ns.get(C_Item.IsEquippedItem, id) == true then return true, "equipped" end
 	local n = C_Item and ns.get(C_Item.GetItemCount, id, true)
-	if type(n) == "number" and n > 0 then return true, "i väskan/banken" end
+	if type(n) == "number" and n > 0 then return true, "in bags/bank" end
 	return false
 end
 
@@ -128,26 +128,26 @@ local function makeRow(i)
 		local shown = e.id and pcall(GameTooltip.SetItemByID, GameTooltip, e.id)
 		if not shown then GameTooltip:SetText(e.name or "?") end
 		GameTooltip:AddLine(" ")
-		GameTooltip:AddLine("Källa: " .. sourceLabel(e.source), 1, 1, 1)
+		GameTooltip:AddLine("Source: " .. sourceLabel(e.source), 1, 1, 1)
 		GameTooltip:AddLine(e.where or "", 1, 1, 1, true)
-		if e.chance then GameTooltip:AddLine("Dropchans: " .. e.chance, 1, 1, 1) end
-		if e.verified == false then GameTooltip:AddLine("Ej bekräftad för Forever ännu.", 1, 0.5, 0.3) end
+		if e.chance then GameTooltip:AddLine("Drop chance: " .. e.chance, 1, 1, 1) end
+		if e.verified == false then GameTooltip:AddLine("Not yet confirmed for Forever.", 1, 0.5, 0.3) end
 		local a = e.alt
 		if a and a.name then
 			GameTooltip:AddLine(" ")
-			GameTooltip:AddLine("Alternativ: " .. a.name, 0.8, 0.8, 0.8)
+			GameTooltip:AddLine("Alternative: " .. a.name, 0.8, 0.8, 0.8)
 			if a.where then GameTooltip:AddLine(a.where, 0.7, 0.7, 0.7, true) end
 		end
 		local has, where = owned(e.id)
-		if has then GameTooltip:AddLine("Du har den (" .. where .. ")", 0.3, 1, 0.3) end
+		if has then GameTooltip:AddLine("You have it (" .. where .. ")", 0.3, 1, 0.3) end
 		local st, cur = compare(e)
 		if st == "other" and cur then
 			local ok, name = ns.getAll(C_Item.GetItemInfo, cur)
-			GameTooltip:AddLine("På dig nu: " .. ((ok and name) or ("item " .. cur)), 1, 0.5, 0.5)
+			GameTooltip:AddLine("Equipped now: " .. ((ok and name) or ("item " .. cur)), 1, 0.5, 0.5)
 		elseif st == "empty" then
-			GameTooltip:AddLine("Inget i den här slotten.", 1, 0.5, 0.5)
+			GameTooltip:AddLine("Nothing in this slot.", 1, 0.5, 0.5)
 		end
-		GameTooltip:AddLine("Shift-klick: länka i chatten  ·  Högerklick: alternativets tooltip", 0.6, 0.8, 1)
+		GameTooltip:AddLine("Shift-click: link in chat  ·  Right-click: alternative's tooltip", 0.6, 0.8, 1)
 		GameTooltip:Show()
 	end)
 	r:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -183,8 +183,8 @@ function refresh()
 	for _, r in ipairs(rows) do r:Hide() end
 	local list = currentList()
 	if not list then
-		summary:SetText("|cffffb040Ingen lista publicerad för den här fasen ännu.|r Forever-raiderna (Onyxia's Lair, Hyjal Summit, "
-			.. "Barrow Deeps) öppnar 9 december; listan fylls i när loot-tabellerna är kända.")
+		summary:SetText("|cffffb040No list published for this phase yet.|r The Forever raids (Onyxia's Lair, Hyjal Summit, "
+			.. "Barrow Deeps) open December 9; the list will be filled in once the loot tables are known.")
 		content:SetHeight(10)
 		return
 	end
@@ -200,7 +200,7 @@ function refresh()
 		else
 			r.icon:SetTexture(134400)
 		end
-		r.name:SetText(e.name or "|cff888888(används inte)|r")
+		r.name:SetText(e.name or "|cff888888(not used)|r")
 		r.name:SetTextColor(qualityColor(e.id))
 		r.src:SetText(sourceLabel(e.source) .. (e.verified == false and "  |cffff8040?|r" or ""))
 		r.where:SetText((e.where or "") .. (e.chance and ("  |cffaaaaaa(" .. e.chance .. ")|r") or ""))
@@ -219,9 +219,9 @@ function refresh()
 		r:Show()
 	end
 	content:SetHeight(#list * ROW_H)
-	summary:SetText(string.format("Du har |cff40ff40%d|r av %d BiS-items.  %s", have, total,
-		#upgrades > 0 and ("Nästa uppgraderingar: |cffff8080" .. table.concat(upgrades, ", ") .. "|r")
-			or "|cff40ff40Allt BiS eller alternativ är på dig!|r"))
+	summary:SetText(string.format("You have |cff40ff40%d|r of %d BiS items.  %s", have, total,
+		#upgrades > 0 and ("Next upgrades: |cffff8080" .. table.concat(upgrades, ", ") .. "|r")
+			or "|cff40ff40All BiS or alternatives equipped!|r"))
 end
 
 local function build(p)
@@ -256,11 +256,11 @@ local function build(p)
 	notes:SetWidth(UI.WIDTH - 140)
 	notes:SetMaxLines(3)
 	local meta = ns.BIS and ns.BIS.meta or {}
-	notes:SetText("Källor kontrollerade " .. (meta.checked or "?") .. ". Forever har egna items (Five Thunders T0.5, Pix Xizzix i "
-		.. "Stranglethorn, nya dungeons) — listor kan ändras med patchar. Hit-cap enligt guiderna: 17 % spell hit (caster), 8 % melee hit.")
-	local src = UI.Button(p, "Källor", 100, 22, function()
+	notes:SetText("Sources checked " .. (meta.checked or "?") .. ". Forever has its own items (Five Thunders T0.5, Pix Xizzix in "
+		.. "Stranglethorn, new dungeons) — lists may change with patches. Hit cap per the guides: 17 % spell hit (caster), 8 % melee hit.")
+	local src = UI.Button(p, "Sources", 100, 22, function()
 		UI.CopyBox(table.concat(meta.sources or {}, "  "))
-	end, "Visa länkarna till guiderna listan bygger på.")
+	end, "Show links to the guides the list is based on.")
 	src:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)
 
 	ns.on("ITEM_DATA_LOAD_RESULT", function()

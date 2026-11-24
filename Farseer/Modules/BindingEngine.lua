@@ -20,7 +20,7 @@ end
 function BE:Describe(b)
 	if b.macro then
 		local t = ns.MacroEngine:Template(b.macro)
-		return "Makro: " .. (t and t.name or b.macro)
+		return "Macro: " .. (t and t.name or b.macro)
 	elseif b.spell then
 		return "Spell: " .. b.spell
 	elseif b.click then
@@ -28,11 +28,11 @@ function BE:Describe(b)
 		if n then
 			local s = ns.Bars and ns.Bars:Situation(n)
 			local label = s and s.name or ("situation " .. n)
-			return (b.button == "RightButton" and "Hela setet: " or "Nästa totem: ") .. label
+			return (b.button == "RightButton" and "Full set: " or "Next totem: ") .. label
 		end
-		return "Klick: " .. b.click
+		return "Click: " .. b.click
 	elseif b.command then
-		return "Kommando: " .. b.command
+		return "Command: " .. b.command
 	end
 	return "?"
 end
@@ -47,8 +47,8 @@ end
 -- Applicerar mallen. Returnerar antal bindningar, lista med fel
 function BE:Apply(id)
 	local p = byId[id]
-	if not p then return 0, { "okänd mall" } end
-	if InCombatLockdown() then return 0, { "kan inte ändra keybinds i strid" } end
+	if not p then return 0, { "unknown template" } end
+	if InCombatLockdown() then return 0, { "can't change keybinds in combat" } end
 	local backup = ns.char.bindBackup
 	local count, errors = 0, {}
 	for _, b in ipairs(p.binds) do
@@ -85,7 +85,7 @@ end
 
 -- Återställer alla tangenter som Farseer har ändrat
 function BE:Restore()
-	if InCombatLockdown() then return 0, { "kan inte ändra keybinds i strid" } end
+	if InCombatLockdown() then return 0, { "can't change keybinds in combat" } end
 	local n = 0
 	for key, old in pairs(ns.char.bindBackup) do
 		if old == "" then pcall(SetBinding, key) else pcall(SetBinding, key, old) end

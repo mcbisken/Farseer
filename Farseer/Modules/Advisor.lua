@@ -28,7 +28,7 @@ function AD:RebuildLists()
 	for k, v in pairs(ns.db.fearMobs) do fearNames[k] = v end
 	wipe(bossRules)
 	for _, r in ipairs(ns.BOSS_RULES) do bossRules[r[1]:lower()] = { totem = r[2], reason = r[3] } end
-	for k, v in pairs(ns.db.bossRules) do bossRules[k] = { totem = v.totem, reason = v.name .. ": egen regel" } end
+	for k, v in pairs(ns.db.bossRules) do bossRules[k] = { totem = v.totem, reason = v.name .. ": custom rule" } end
 	wipe(dispelMobs)
 	for name, list in pairs(ns.DISPEL_MOBS or {}) do dispelMobs[name:lower()] = list end
 end
@@ -86,6 +86,14 @@ local function unitInfo(unit)
 	local _, _, class = ns.getAll(UnitClass, unit)
 	info.class = class
 	return info
+end
+
+-- En fiende i närheten räknas bara om du har den som target/focus eller om den har dig som target.
+-- Okänt (secret) räknas som nej, så att spelare som bara står i närheten inte ger varningar.
+function AD:Engaged(unit)
+	if unit == "target" or unit == "focus" then return true end
+	if ns.get(UnitIsUnit, unit, "target") == true or ns.get(UnitIsUnit, unit, "focus") == true then return true end
+	return ns.get(UnitIsUnit, unit .. "target", "player") == true
 end
 
 local function lossOfControl()
@@ -170,12 +178,12 @@ function AD:Evaluate()
 		local feared, text = lossOfControl()
 		if feared then locHold = now + 6 end
 		if feared or now < locHold then
-			add("Tremor Totem", 100, feared and ("Du är " .. (text and text:lower() or "fearad") .. "!") or "Du var nyss fearad")
+			add("Tremor Totem", 100, feared and ("You are " .. (text and text:lower() or "feared") .. "!") or "You were just feared")
 		end
 	end
 
 	-- 2. Target och nameplates
-	local units = { "target" }
+	local units = { "target", "focus" }
 	for unit in pairs(plates) do table.insert(units, unit) end
 	for _, unit in ipairs(units) do
 		local u = unitInfo(unit)
@@ -185,7 +193,7 @@ function AD:Evaluate()
 			if not u.player and lname then
 				if cfg.fearMobs and fearNames[lname] then
 					local what = ns.FEAR_INFO and ns.FEAR_INFO[fearNames[lname]]
-					add("Tremor Totem", 70 + bonus, fearNames[lname] .. (what and (": " .. what) or " kan fear/charm/sleep"))
+					add("Tremor Totem", 70 + bonus, fearNames[lname] .. (what and (": " .. what) or " can fear/charm/sleep"))
 				end
 				if cfg.dispel and dispelMobs[lname] then
 					for _, d in ipairs(dispelMobs[lname]) do add(d[1], 40 + bonus, d[2]) end
@@ -193,7 +201,7 @@ function AD:Evaluate()
 				if cfg.boss and bossRules[lname] then
 					add(bossRules[lname].totem, 50 + bonus, bossRules[lname].reason)
 				end
-			elseif u.player and u.class and cfg.pvpClass then
+			elseif u.player and u.class and cfg.pvpClass and (cfg.pvpNearby or AD:Engaged(unit)) then
 				for _, rule in ipairs(ns.PVP_CLASS_RULES[u.class] or {}) do
 					add(rule[1], rule[2] - 10 + bonus, rule[3])
 				end
@@ -213,12 +221,12 @@ function AD:Evaluate()
 		if dispelCache.dirty then scanDispels() end
 		if dispelCache.poison > 0 then
 			add("Poison Cleansing Totem", 45 + math.min(dispelCache.poison, 5) * 3,
-				string.format("Gift på %s%s", dispelCache.who or "gruppen",
+				string.format("Poison on %s%s", dispelCache.who or "the group",
 					dispelCache.poison > 1 and (" (+" .. (dispelCache.poison - 1) .. ")") or ""))
 		end
 		if dispelCache.disease > 0 then
 			add("Disease Cleansing Totem", 45 + math.min(dispelCache.disease, 5) * 3,
-				string.format("Sjukdom på %s%s", dispelCache.who or "gruppen",
+				string.format("Disease on %s%s", dispelCache.who or "the group",
 					dispelCache.disease > 1 and (" (+" .. (dispelCache.disease - 1) .. ")") or ""))
 		end
 	end
@@ -246,12 +254,12 @@ function AD:Evaluate()
 		local el = ns.Spellbook:TotemElement(top.totem)
 		local c = el and ns.ELEMENT_COLOR[el]
 		local _, sit = ns.Bars:SituationFor(top.totem)
-		local text = top.reason .. (sit and ("  ·  knapp: " .. sit.name) or "")
+		local text = top.reason .. (sit and ("  ·  button: " .. sit.name) or "")
 		ns.Alert:Show(top.totem, top.totem, top.totem:upper() .. "!", text, c)
 		if lastTop ~= top.totem then ns.fire("ADVICE", top) end
 	elseif noTotems then
-		ns.Alert:Show("nototems", noTotems.totems and noTotems.totems[1], "LÄGG TOTEMS!",
-			"Inga totems ute — högerklicka \"" .. noTotems.name .. "\" för hela setet.", { 0.4, 0.8, 1 })
+		ns.Alert:Show("nototems", noTotems.totems and noTotems.totems[1], "DROP TOTEMS!",
+			"No totems down — right-click \"" .. noTotems.name .. "\" for the full set.", { 0.4, 0.8, 1 })
 	else
 		ns.Alert:Hide()
 	end
@@ -265,10 +273,10 @@ function AD:Evaluate()
 			if total and total > 1 then
 				if melee >= caster and melee > 0 then
 					idx = ns.Bars:FindByName("Melee")
-					why = melee .. " melee i gruppen"
+					why = melee .. " melee in the group"
 				elseif caster > 0 then
 					idx = ns.Bars:FindByName("Caster")
-					why = caster .. " casters i gruppen"
+					why = caster .. " casters in the group"
 				end
 			end
 		end

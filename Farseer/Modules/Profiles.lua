@@ -15,7 +15,7 @@ PR.CHAR_KEYS = { "mode", "autoMode", "situations", "callSet", "seqReset", "bars"
 ---------------------------------------------------------------------------------------------------
 local function ser(v, out, depth)
 	local t = type(v)
-	if depth > 20 then error("för djupt nästlad") end
+	if depth > 20 then error("nested too deeply") end
 	if t == "string" then
 		table.insert(out, "s" .. #v .. ":" .. v)
 	elseif t == "number" then
@@ -53,20 +53,20 @@ end
 function PR.Deserialize(s)
 	local pos = 1
 	local function read(depth)
-		if depth > 20 then error("för djupt nästlad") end
+		if depth > 20 then error("nested too deeply") end
 		local c = s:sub(pos, pos)
 		if c == "s" then
 			local colon = s:find(":", pos, true)
 			local len = colon and tonumber(s:sub(pos + 1, colon - 1))
-			if not len then error("trasig sträng vid " .. pos) end
+			if not len then error("broken string at " .. pos) end
 			local v = s:sub(colon + 1, colon + len)
-			if #v ~= len then error("för kort sträng vid " .. pos) end
+			if #v ~= len then error("string too short at " .. pos) end
 			pos = colon + len + 1
 			return v
 		elseif c == "n" then
 			local semi = s:find(";", pos, true)
 			local v = semi and tonumber(s:sub(pos + 1, semi - 1))
-			if not v then error("trasigt tal vid " .. pos) end
+			if not v then error("broken number at " .. pos) end
 			pos = semi + 1
 			return v
 		elseif c == "T" then pos = pos + 1 return true
@@ -75,19 +75,19 @@ function PR.Deserialize(s)
 			pos = pos + 1
 			local t = {}
 			while s:sub(pos, pos) ~= "}" do
-				if pos > #s then error("tabellen tar aldrig slut") end
+				if pos > #s then error("table never ends") end
 				local k = read(depth + 1)
-				if type(k) ~= "string" and type(k) ~= "number" then error("ogiltig nyckel") end
+				if type(k) ~= "string" and type(k) ~= "number" then error("invalid key") end
 				t[k] = read(depth + 1)
 			end
 			pos = pos + 1
 			return t
 		end
-		error("okänt tecken '" .. c .. "' vid " .. pos)
+		error("unknown character '" .. c .. "' at " .. pos)
 	end
 	local ok, v = pcall(read, 0)
 	if not ok then return nil, v end
-	if pos <= #s then return nil, "skräp efter data" end
+	if pos <= #s then return nil, "junk after data" end
 	return v
 end
 
@@ -143,11 +143,11 @@ local function compress(raw)
 	if ok2 and type(b) == "string" then return b end
 end
 local function decompress(b)
-	if not (E and E.DecodeBase64 and E.DecompressString) then return nil, "klienten kan inte packa upp FS2-text" end
+	if not (E and E.DecodeBase64 and E.DecompressString) then return nil, "the client can't decompress FS2 text" end
 	local ok, z = pcall(E.DecodeBase64, b)
-	if not ok or type(z) ~= "string" then return nil, "trasig base64" end
+	if not ok or type(z) ~= "string" then return nil, "broken base64" end
 	local ok2, raw = pcall(E.DecompressString, z)
-	if not ok2 or type(raw) ~= "string" then return nil, "kunde inte packa upp" end
+	if not ok2 or type(raw) ~= "string" then return nil, "could not decompress" end
 	return raw
 end
 
@@ -180,8 +180,8 @@ local function applyInto(dst, src, defaults)
 end
 
 function PR:Apply(p)
-	if type(p) ~= "table" or type(p.char) ~= "table" then return false, "inte en Farseer-profil" end
-	if InCombatLockdown() then return false, "kan inte byta profil i strid" end
+	if type(p) ~= "table" or type(p.char) ~= "table" then return false, "not a Farseer profile" end
+	if InCombatLockdown() then return false, "can't switch profiles in combat" end
 	for _, k in ipairs(self.CHAR_KEYS) do
 		local v, d = p.char[k], ns.DEFAULTS.char[k]
 		if v ~= nil and (d == nil or type(v) == type(d)) then
@@ -214,7 +214,7 @@ end
 
 function PR:Save(name)
 	name = ns.trim(name)
-	if name == "" then return false, "profilen saknar namn" end
+	if name == "" then return false, "the profile has no name" end
 	local p = self:Snapshot()
 	p.saved = date and date("%Y-%m-%d %H:%M") or ""
 	ns.db.profiles[name] = p
@@ -224,7 +224,7 @@ end
 
 function PR:Load(name)
 	local p = ns.db.profiles[name]
-	if not p then return false, "ingen profil som heter " .. tostring(name) end
+	if not p then return false, "no profile named " .. tostring(name) end
 	local ok, err = self:Apply(p)
 	if ok then ns.char.profile = name end
 	return ok, err
@@ -248,20 +248,20 @@ end
 function PR:Decode(text)
 	text = ns.trim(text)
 	local kind, body = text:match("^(FS%d):(.+)$")
-	if not kind then return nil, "texten börjar inte med FS1: eller FS2:" end
+	if not kind then return nil, "the text doesn't start with FS1: or FS2:" end
 	local raw, err
 	if kind == "FS1" then
 		raw = PR.FromBase64(body)
-		if not raw then return nil, "trasig text (base64)" end
+		if not raw then return nil, "broken text (base64)" end
 	elseif kind == "FS2" then
 		raw, err = decompress(body)
 		if not raw then return nil, err end
 	else
-		return nil, "okänd version " .. kind
+		return nil, "unknown version " .. kind
 	end
 	local p, perr = PR.Deserialize(raw)
 	if not p then return nil, perr end
-	if type(p) ~= "table" or type(p.char) ~= "table" then return nil, "inte en Farseer-profil" end
+	if type(p) ~= "table" or type(p.char) ~= "table" then return nil, "not a Farseer profile" end
 	return p
 end
 

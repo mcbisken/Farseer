@@ -8,9 +8,9 @@ local rows = {}
 local ROW_H = 58
 
 local STATE = {
-	done = { "|cff40ff40KLAR|r", { 0.15, 0.35, 0.15 } },
-	active = { "|cffffd100PÅGÅR|r", { 0.4, 0.35, 0.1 } },
-	todo = { "|cff999999kvar|r", { 0.15, 0.18, 0.25 } },
+	done = { "|cff40ff40DONE|r", { 0.15, 0.35, 0.15 } },
+	active = { "|cffffd100ACTIVE|r", { 0.4, 0.35, 0.1 } },
+	todo = { "|cff999999to do|r", { 0.15, 0.18, 0.25 } },
 }
 
 local function makeRow(i)
@@ -47,9 +47,9 @@ local function makeRow(i)
 		GameTooltip:SetText(st.name)
 		if st.giver then GameTooltip:AddLine(st.giver, 0.8, 0.8, 1, true) end
 		if st.task then GameTooltip:AddLine(st.task, 1, 1, 1, true) end
-		if st.reward then GameTooltip:AddLine("Belöning: " .. st.reward, 1, 0.82, 0, true) end
-		GameTooltip:AddLine(st.id and ("Quest-ID " .. st.id) or "Okänt quest-ID", 0.6, 0.6, 0.6)
-		if st.url then GameTooltip:AddLine("Länk: knappen Källor nedan", 0.6, 0.8, 1) end
+		if st.reward then GameTooltip:AddLine("Reward: " .. st.reward, 1, 0.82, 0, true) end
+		GameTooltip:AddLine(st.id and ("Quest ID " .. st.id) or "Unknown quest ID", 0.6, 0.6, 0.6)
+		if st.url then GameTooltip:AddLine("Link: Sources button below", 0.6, 0.8, 1) end
 		GameTooltip:Show()
 	end)
 	r:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -72,14 +72,14 @@ local function refresh()
 		r.name:SetText((i == nextIdx and "|cff40c0ff> |r" or "") .. (st.name or "?"))
 		r.giver:SetText(st.giver or "")
 		r.task:SetText(st.task or "")
-		r.reward:SetText(st.reward and ("Belöning: " .. st.reward) or "")
+		r.reward:SetText(st.reward and ("Reward: " .. st.reward) or "")
 		r:Show()
 	end
 	for i = #list + 1, #rows do rows[i]:Hide() end
 	content:SetHeight(#list * ROW_H)
 	local nxt = nextIdx and list[nextIdx] and list[nextIdx].step.name
-	summary:SetText(string.format("|cff40ff40%d|r av %d steg klara.%s  Shamanversionen är Horde (Mokvar, Orgrimmar), level 58+.",
-		done, #list, nxt and ("  Nästa: |cff40c0ff" .. nxt .. "|r") or "  |cff40ff40Hela setet klart!|r"))
+	summary:SetText(string.format("|cff40ff40%d|r of %d steps done.%s  The shaman version is Horde (Mokvar, Orgrimmar), level 58+.",
+		done, #list, nxt and ("  Next: |cff40c0ff" .. nxt .. "|r") or "  |cff40ff40Full set done!|r"))
 end
 
 local function build(p)
@@ -91,12 +91,12 @@ local function build(p)
 	local sf
 	sf, content = UI.Scroll(p, UI.WIDTH - 30, UI.HEIGHT - 90)
 	sf:SetPoint("TOPLEFT", summary, "BOTTOMLEFT", 0, -8)
-	local note = UI.Label(p, "Status läses från questloggen. Fyra steg har flera varianter (en per relik/boss) — "
-		.. "ett senare klart steg markerar tidigare som klara. Kontrollerat " .. (ns.T05 and ns.T05.checked or "?") .. ".",
+	local note = UI.Label(p, "Status is read from the quest log. Four steps have several variants (one per relic/boss) — "
+		.. "a later completed step marks earlier ones as done. Checked " .. (ns.T05 and ns.T05.checked or "?") .. ".",
 		"GameFontDisableSmall")
 	note:SetPoint("TOPLEFT", sf, "BOTTOMLEFT", 0, -6)
 	note:SetWidth(UI.WIDTH - 140)
-	local src = UI.Button(p, "Källor", 100, 22, function()
+	local src = UI.Button(p, "Sources", 100, 22, function()
 		UI.CopyBox(table.concat(ns.T05 and ns.T05.sources or {}, "  "))
 	end)
 	src:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0)

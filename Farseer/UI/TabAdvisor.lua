@@ -10,16 +10,17 @@ local bossTotem = "Fire Resistance Totem"
 local bossDrop
 
 local RULES = {
-	{ "enabled", "Totemvarningar på", "Huvudbrytare för alla varningar och glöd." },
-	{ "fear", "Fear/charm/sleep på dig -> Tremor", "Läser spelets loss-of-control (fungerar i strid)." },
-	{ "fearMobs", "Fear-mobs på target/nameplates -> Tremor", "Listan nedan. Lägg till egna mobs." },
-	{ "pvpClass", "PvP: fiendens klass -> kontratotem", "Warlock/Priest -> Tremor, Rogue/Hunter -> Poison Cleansing, Mage -> Grounding, Warrior -> Earthbind osv." },
-	{ "dispel", "Gift/sjukdom på gruppen -> Cleansing", "Läser auror på dig och din party. I strid kan spelet låsa auror; då varnas bara det som går att läsa." },
-	{ "boss", "Boss/zon -> resist-totem", "Onyxia/Molten Core -> Fire Resistance, Sapphiron -> Frost Resistance osv. + egna regler." },
-	{ "noTotems", "Påminn i strid utan totems", "Efter 8 s i strid utan ett enda totem." },
-	{ "groupComp", "Rekommendera situation efter gruppen (PvE)", "Grön glöd på Melee eller Caster beroende på gruppens klasser." },
-	{ "sound", "Ljud vid ny varning", "Raid warning-ljud, max var 8:e sekund per varning." },
-	{ "showText", "Visa orsak under varningen", "Text som förklarar varför totemet behövs." },
+	{ "enabled", "Totem warnings on", "Master switch for all warnings and glows." },
+	{ "fear", "Fear/charm/sleep on you -> Tremor", "Reads the game's loss-of-control (works in combat)." },
+	{ "fearMobs", "Fear mobs on target/nameplates -> Tremor", "The list below. Add your own mobs." },
+	{ "pvpClass", "PvP: enemy class -> counter totem", "Warlock/Priest -> Tremor, Rogue/Hunter -> Poison Cleansing, Mage -> Grounding, Warrior -> Earthbind, etc." },
+	{ "pvpNearby", "PvP: also enemies that are only nearby", "Off: only your target/focus and enemies that are targeting you trigger counter totems. On: every enemy player on a nameplate near you counts." },
+	{ "dispel", "Poison/disease on group -> Cleansing", "Reads auras on you and your party. In combat the game may lock auras; then only what can be read is warned about." },
+	{ "boss", "Boss/zone -> resist totem", "Onyxia/Molten Core -> Fire Resistance, Sapphiron -> Frost Resistance, etc. + custom rules." },
+	{ "noTotems", "Remind in combat without totems", "After 8 s in combat without a single totem." },
+	{ "groupComp", "Recommend situation from group (PvE)", "Green glow on Melee or Caster depending on the group's classes." },
+	{ "sound", "Sound on new warning", "Raid warning sound, at most every 8 seconds per warning." },
+	{ "showText", "Show reason below warning", "Text explaining why the totem is needed." },
 }
 
 local refresh
@@ -39,7 +40,7 @@ local function refreshFear()
 			r.del:SetPoint("RIGHT", -2, 0)
 			fearRows[i] = r
 		end
-		r.text:SetText(e.name .. (e.own and "  |cff40c0ff(egen)|r" or ""))
+		r.text:SetText(e.name .. (e.own and "  |cff40c0ff(custom)|r" or ""))
 		r.del:SetScript("OnClick", function() ns.Advisor:RemoveFearMob(e.key); refreshFear() end)
 		r:Show()
 	end
@@ -67,7 +68,7 @@ local function refreshBoss()
 			bossRows[i] = r
 		end
 		r.icon:SetTexture(ns.spellIcon(e.totem))
-		r.text:SetText(e.name .. " -> " .. e.totem .. (e.key and "  |cff40c0ff(egen)|r" or ""))
+		r.text:SetText(e.name .. " -> " .. e.totem .. (e.key and "  |cff40c0ff(custom)|r" or ""))
 		r.del:SetShown(e.key ~= nil)
 		r.del:SetScript("OnClick", function() ns.Advisor:RemoveBossRule(e.key); refreshBoss() end)
 		r:Show()
@@ -77,7 +78,7 @@ end
 
 local function build(p)
 	local cfg = ns.char.advisor
-	local h = UI.Header(p, "Regler")
+	local h = UI.Header(p, "Rules")
 	h:SetPoint("TOPLEFT", 4, -4)
 	local last = h
 	for _, r in ipairs(RULES) do
@@ -86,16 +87,16 @@ local function build(p)
 		last = cb
 		table.insert(checks, cb)
 	end
-	local test = UI.Button(p, "Testa varning", 130, 24, function() ns.Alert:Test() end)
+	local test = UI.Button(p, "Test warning", 130, 24, function() ns.Alert:Test() end)
 	test:SetPoint("TOPLEFT", last, "BOTTOMLEFT", 0, -10)
-	local unlock = UI.Button(p, "Flytta varningsrutan", 150, 24, function() ns.setLocked(not ns.char.locked) end,
-		"Låser upp alla Farseer-ramar. Dra varningsrutan dit du vill ha den och klicka igen för att låsa.")
+	local unlock = UI.Button(p, "Move warning box", 150, 24, function() ns.setLocked(not ns.char.locked) end,
+		"Unlocks all Farseer frames. Drag the warning box where you want it and click again to lock.")
 	unlock:SetPoint("LEFT", test, "RIGHT", 6, 0)
 
 	-- Kontratotems
-	local ch = UI.Header(p, "Kontratotem-baren")
+	local ch = UI.Header(p, "Counter totem bar")
 	ch:SetPoint("TOPLEFT", test, "BOTTOMLEFT", 0, -16)
-	local cd = UI.Label(p, "Totems som visas som egna knappar och glöder när Farseer varnar.", "GameFontHighlightSmall")
+	local cd = UI.Label(p, "Totems shown as their own buttons that glow when Farseer warns.", "GameFontHighlightSmall")
 	cd:SetPoint("TOPLEFT", ch, "BOTTOMLEFT", 0, -4)
 	local all = {}
 	for name in pairs(ns.TOTEMS) do table.insert(all, name) end
@@ -117,7 +118,7 @@ local function build(p)
 
 	-- Fear-mobs
 	local x = 470
-	local fh = UI.Header(p, "Fear-mobs (Tremor-varning)")
+	local fh = UI.Header(p, "Fear mobs (Tremor warning)")
 	fh:SetPoint("TOPLEFT", p, "TOPLEFT", x, -4)
 	local sf
 	sf, fearContent = UI.Scroll(p, 250, 150)
@@ -126,21 +127,21 @@ local function build(p)
 		ns.Advisor:AddFearMob(text); self:SetText(""); refreshFear()
 	end)
 	fe:SetPoint("TOPLEFT", sf, "BOTTOMLEFT", 6, -8)
-	local fadd = UI.Button(p, "Lägg till", 70, 22, function()
+	local fadd = UI.Button(p, "Add", 70, 22, function()
 		ns.Advisor:AddFearMob(fe:GetText()); fe:SetText(""); refreshFear()
 	end)
 	fadd:SetPoint("LEFT", fe, "RIGHT", 6, 0)
-	local ftarget = UI.Button(p, "Mitt target", 100, 22, function()
+	local ftarget = UI.Button(p, "My target", 100, 22, function()
 		local name = ns.get(UnitName, "target")
 		if name and ns.get(UnitIsPlayer, "target") ~= true then
 			ns.Advisor:AddFearMob(name); refreshFear()
-			ns.print("%s tillagd som fear-mob.", name)
-		else ns.print("ta en mob i target först.") end
+			ns.print("%s added as a fear mob.", name)
+		else ns.print("target a mob first.") end
 	end)
 	ftarget:SetPoint("TOPLEFT", fe, "BOTTOMLEFT", -6, -6)
 
 	-- Bossregler
-	local bh = UI.Header(p, "Boss -> resist-totem")
+	local bh = UI.Header(p, "Boss -> resist totem")
 	bh:SetPoint("TOPLEFT", ftarget, "BOTTOMLEFT", 0, -16)
 	local bsf
 	bsf, bossContent = UI.Scroll(p, 300, 130)
@@ -157,12 +158,12 @@ local function build(p)
 		return items
 	end, function(v) bossTotem = v end)
 	bossDrop:SetPoint("LEFT", be, "RIGHT", 6, 0)
-	local badd = UI.Button(p, "Lägg till", 70, 22, function()
+	local badd = UI.Button(p, "Add", 70, 22, function()
 		local name = ns.trim(be:GetText())
 		if name == "" then name = ns.get(UnitName, "target") or "" end
-		if name == "" then ns.print("skriv ett bossnamn eller ta bossen i target.") return end
+		if name == "" then ns.print("type a boss name or target the boss.") return end
 		ns.Advisor:AddBossRule(name, bossTotem); be:SetText(""); refreshBoss()
-	end, "Tomt namn = ditt nuvarande target.")
+	end, "Empty name = your current target.")
 	badd:SetPoint("TOPLEFT", be, "BOTTOMLEFT", -6, -6)
 end
 
@@ -174,4 +175,4 @@ function refresh()
 	refreshBoss()
 end
 
-UI.AddTab("advisor", "Varningar", build, function() refresh() end)
+UI.AddTab("advisor", "Warnings", build, function() refresh() end)

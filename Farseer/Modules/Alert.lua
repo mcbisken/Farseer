@@ -79,7 +79,7 @@ function AL:Build()
 		return g
 	end)
 	frame.pop = ok and ag or { Play = function() end }
-	ns.makeMovable(frame, cfg, "Farseer: varningar")
+	ns.makeMovable(frame, cfg, "Farseer: warnings")
 	frame:Hide()
 end
 
@@ -133,7 +133,7 @@ end
 function AL:Current() return current end
 
 function AL:Test()
-	self:Flash("test", "Tremor Totem", "TREMOR TOTEM!", "Test: så här ser en varning ut. Dra i den när addonet är upplåst.",
+	self:Flash("test", "Tremor Totem", "TREMOR TOTEM!", "Test: this is what a warning looks like. Drag it while the addon is unlocked.",
 		{ 1, 0.6, 0.1 }, 4)
 end
 
@@ -145,8 +145,8 @@ function AL:OnShamanLogin()
 			frame:Show()
 			if not current then
 				frame.icon:SetTexture(ns.spellIcon("Tremor Totem"))
-				frame.title:SetText("Varningar")
-				frame.text:SetText("Dra för att flytta")
+				frame.title:SetText("Warnings")
+				frame.text:SetText("Drag to move")
 			end
 		elseif not current then
 			frame:Hide()

@@ -55,7 +55,7 @@ med alla inställningskombinationer, keybind-mallar + återställning, Call of t
 secret values, påminnelser, alla UI-flikar, slashkommandon och kontroll av oavsiktliga globaler.
 `tests/tests_v11.lua` täcker v1.1 (tysk klient, HUD, totemdöd, profiler, utrustning, trainer, checklista, T0.5, BiS-jämförelse).
 `tests/tests_v12.lua` täcker v1.2 (procs, mana, purge, casts, DR, totemräckvidd, spec, click-cast, raid-totems, downranking).
-2077 kontroller, 0 fel (2026-11-24).
+2088 kontroller, 0 fel (2026-11-24). Addonet visar all text på engelska (kommentarer i koden är på svenska).
 
 ## Inte verifierat i riktiga klienten än
 Testerna kör mot en mock, inte mot spelet. Saker att kolla första gången i spelet:
