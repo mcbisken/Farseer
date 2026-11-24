@@ -189,7 +189,7 @@ function PC:Build()
 		f.timer = f:CreateFontString(nil, "OVERLAY", "NumberFontNormalLarge")
 		f.timer:SetPoint("CENTER", 0, 0)
 	end
-	local sh = makeIcon("shield", "Charges left on your shield. Red number = running out, recast it.")
+	local sh = makeIcon("shield", "Charges left on your shield. Red number (flashing) = running out, recast it.")
 	sh.title = "Shield"
 	makeIcon("purge", function(self)
 		local names = {}
@@ -932,6 +932,194 @@ end
 -- Sköldladdningar
 ---------------------------------------------------------------------------------------------------
 -- Returnerar sköldens namn, laddningar (tal eller nil), rått secret-värde
+---------------------------------------------------------------------------------------------------
+-- Sköldens laddningar via aura-containern (som Maelstrom): i strid är laddningarna secret. Spelet ritar
+-- talet, och en täckbild (statusbar med sköldens ikon, full när laddningarna är fler än gränsen) ligger
+-- över en röd blinkning. Vid få laddningar är täckbilden tom och det röda syns. Vi läser inget själva.
+---------------------------------------------------------------------------------------------------
+local shBox            -- nil = inte försökt, false = gick inte, annars { container, button, ... }
+local shieldCounts     -- klienten räknar laddningar (vi har sett ett tal > 0); annars ingen röd blinkning
+
+local function shieldLow() return math.max(1, math.floor(tonumber(cfg().shieldLow) or 1)) end
+
+local function shieldIcon(s)
+	if not s then
+		for _, name in ipairs(ns.SHIELDS) do
+			if ns.Spellbook:Knows(name) then s = name break end
+		end
+	end
+	return (s and ns.spellIcon(s)) or "Interface\\Icons\\Spell_Nature_LightningShield"
+end
+
+-- Talet: inget vid 0, rött upp till gränsen, vitt över
+local function shieldFormatter(low)
+	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
+	local ok, fm = pcall(function()
+		local x = C_StringUtil.CreateNumericRuleFormatter()
+		x:SetBreakpoints({
+			{ threshold = 0, format = "" },
+			{ threshold = 1, format = "|cffff4040%d|r" },
+			{ threshold = low + 1, format = "%d" },
+		})
+		for n = 0, low + 2 do
+			local t = x:FormatNumber(n)
+			if type(t) ~= "string" or ns.isSecret(t) or (n == 0 and t ~= "") then error("format " .. n) end
+		end
+		return x
+	end)
+	return ok and fm or nil
+end
+
+-- Gränsen (Charges left to warn): täckbilden är tom vid <= gränsen, full över
+local function applyShieldLow(box)
+	local low = shieldLow()
+	if box.low == low then return end
+	box.low = low
+	local okBar = box.cover and pcall(box.button.SetApplicationBar, box.button, box.cover,
+		{ minApplications = low, maxApplications = low + 1, interpolation = immediate() })
+	-- Utan täckbild skulle det röda alltid synas
+	box.noBar = not okBar
+	if box.noBar and box.cover then box.cover:Hide() end
+	local fm = shieldFormatter(low)
+	if not pcall(box.button.SetApplicationCount, box.button, box.fs, fm and { formatter = fm } or nil) then
+		pcall(box.button.SetApplicationCount, box.button, box.fs)
+	end
+end
+
+local function setCoverIcon(box, s)
+	if not box.cover or box.coverSpell == (s or false) then return end
+	box.coverSpell = s or false
+	pcall(box.cover.SetStatusBarTexture, box.cover, shieldIcon(s))
+	local ct = box.cover:GetStatusBarTexture()
+	if type(ct) == "table" and ct.SetTexCoord then pcall(ct.SetTexCoord, ct, 0.08, 0.92, 0.08, 0.92) end
+end
+
+local function initShieldButton(box, button)
+	local f = icons.shield
+	local size = f:GetWidth()
+	if type(size) ~= "number" or size <= 0 then size = ns.char.bars.procs.size or 36 end
+	button:SetSize(size, size)
+	button:ClearAllPoints()
+	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	noMouse(button)
+	local base = button:CreateTexture(nil, "ARTWORK")
+	base:SetAllPoints()
+	base:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	base:SetTexture(shieldIcon())
+	pcall(button.SetIcon, button, base)
+	box.icon = base
+	-- Rött under täckbilden: syns bara när den är tom (få laddningar)
+	local red = CreateFrame("Frame", nil, button)
+	red:SetAllPoints(button)
+	red:SetFrameLevel(button:GetFrameLevel() + 1)
+	red.tex = red:CreateTexture(nil, "OVERLAY")
+	red.tex:SetAllPoints()
+	red.tex:SetColorTexture(1, 0.12, 0.08, 0.6)
+	pcall(red.tex.SetBlendMode, red.tex, "ADD")
+	box.red = red
+	box.redPulse = addPulse(red)
+	-- Täckbilden: sköldens ikon som statusbar
+	local cover = CreateFrame("StatusBar", nil, button)
+	cover:SetAllPoints(button)
+	cover:SetFrameLevel(button:GetFrameLevel() + 2)
+	box.cover = cover
+	setCoverIcon(box, nil)
+	-- Talet (spelet skriver det)
+	local num = CreateFrame("Frame", nil, button)
+	num:SetAllPoints(button)
+	num:SetFrameLevel(button:GetFrameLevel() + 3)
+	local fs = num:CreateFontString(nil, "OVERLAY", "NumberFontNormalLarge")
+	fs:SetPoint("BOTTOMRIGHT", -2, 2)
+	box.fs = fs
+	box.button = button
+	applyShieldLow(box)
+	PC:FlashShieldBox(box)
+	PC.dirty = true
+end
+
+function PC:SetupShieldBox()
+	if shBox ~= nil then return shBox end
+	if not frame or InCombatLockdown() or aurasSecret() then return nil end
+	if not cfg().shield then return nil end
+	local any = false
+	for _, s in ipairs(ns.SHIELDS) do
+		if ns.Spellbook:Knows(s) then any = true end
+	end
+	if not any then return nil end
+	local ids = {}
+	for _, list in pairs(ns.SHIELD_IDS or {}) do
+		for _, id in ipairs(list) do ids[id] = true end
+	end
+	local box = {}
+	local ok, err = pcall(function()
+		local f = icons.shield
+		-- Föräldern är procs-rutan; ankaret följer sköldikonen när raden flyttar sig
+		local c = CreateFrame("AuraContainer", nil, frame, "CustomAuraContainerTemplate")
+		box.container = c
+		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+		c:SetSize(f:GetWidth(), f:GetHeight())
+		c:SetFrameStrata(frame:GetFrameStrata())
+		c:SetFrameLevel(f:GetFrameLevel() + 5)
+		c:SetUnit("player")
+		noMouse(c)
+		c:AddAuraSlot("shield", "HELPFUL", {
+			candidateFilters = { includeSpellIDs = ids },
+			initializeFrame = function(button)
+				local ok2, e2 = pcall(initShieldButton, box, button)
+				if not ok2 then ns.report("Shield container button: " .. tostring(e2)) end
+			end,
+		})
+	end)
+	if not ok then
+		if box.container then pcall(box.container.Hide, box.container) end
+		shBox = false
+		PC.shBoxError = tostring(err)
+		return false
+	end
+	shBox = box
+	return box
+end
+
+function PC:ResetShieldBox()
+	if InCombatLockdown() then return false end
+	if shBox and shBox.container then pcall(shBox.container.Hide, shBox.container) end
+	shBox = nil
+	shieldCounts = nil   -- läses in igen nästa gång skölden syns
+	PC.shBoxError = nil
+	return true
+end
+
+function PC:ShieldBox() return shBox and shBox.button and shBox or nil end
+function PC:ShieldBoxState()
+	if shBox == nil then return "not built" end
+	if shBox == false then return "unavailable: " .. tostring(PC.shBoxError) end
+	if not shBox.button then return "waiting for the buff" end
+	if shBox.noBar then return "active (no low-charge flash)" end
+	return shieldCounts and "active" or "active (charges not counted yet)"
+end
+
+-- Det röda: bara när klienten räknar laddningar; blinkar om Flash procs är på, annars fast
+function PC:FlashShieldBox(b)
+	local box = b or shBox
+	if not (box and box.red) then return end
+	local on = shieldCounts and not box.noBar and true or false
+	pcall(box.red.SetShown, box.red, on)
+	if box.redPulse then pcall(box.redPulse.Set, box.redPulse, on and flashOn()) end
+end
+
+function PC:StyleShieldBox()
+	local box = shBox
+	if not box or InCombatLockdown() then return end
+	local f = icons.shield
+	pcall(box.container.SetShown, box.container, cfg().shield and true or false)
+	if box.button then applyShieldLow(box) end
+	self:FlashShieldBox()
+	local size = f:GetWidth()
+	if type(size) ~= "number" or size <= 0 then return end
+	pcall(box.container.SetSize, box.container, size, size)
+	if box.button then pcall(box.button.SetSize, box.button, size, size) end
+end
+
 function PC:Shield()
 	for _, s in ipairs(ns.SHIELDS) do
 		if ns.Spellbook:Knows(s) then
@@ -941,6 +1129,10 @@ function PC:Shield()
 				local n, raw = applications(a)
 				-- 0 stacks på en aura som finns = klienten räknar inte laddningar: visa skölden utan siffra
 				if n == 0 then return s, nil, nil end
+				if n and n > 0 and not shieldCounts then
+					shieldCounts = true
+					self:FlashShieldBox()
+				end
 				return s, n, raw
 			end
 		end
@@ -962,12 +1154,19 @@ function PC:UpdateShield()
 		if ns.Reminders.SetShieldCharges then ns.Reminders:SetShieldCharges(nil) end
 		return
 	end
-	local low = n ~= nil and n <= (cfg().shieldLow or 1)
+	local low = n ~= nil and n <= shieldLow()
 	f.icon:SetTexture(ns.spellIcon(s))
 	f.title = s
 	setShown(f, true)
-	showCount(f.count, n, raw, low)
-	if low then f.glow:On() else f.glow:Off() end
+	local box = self:ShieldBox()
+	if box then
+		-- Spelet skriver talet och visar det röda; vi byter bara ikonen på täckbilden
+		setCoverIcon(box, s)
+		f.count:SetText("")
+	else
+		showCount(f.count, n, raw, low)
+	end
+	if low and flashOn() then f.glow:On() else f.glow:Off() end
 	if ns.Reminders.SetShieldCharges then ns.Reminders:SetShieldCharges(n, raw, low) end
 end
 
@@ -1329,6 +1528,8 @@ function PC:Refresh()
 	self:Layout()
 	self:SetupMaelstromBox()
 	self:StyleMaelstromBox()
+	self:SetupShieldBox()
+	self:StyleShieldBox()
 	self:Update()
 end
 
@@ -1375,9 +1576,14 @@ function PC:OnShamanLogin()
 		wipe(purgeWarned); manaArmed = true
 		PC:SetupMaelstromBox()
 		PC:StyleMaelstromBox()
+		PC:SetupShieldBox()
+		PC:StyleShieldBox()
 	end)
 	ns.on("SPELLS_CHANGED", function()
-		if not InCombatLockdown() then PC:SetupMaelstromBox(); PC:StyleMaelstromBox() end
+		if not InCombatLockdown() then
+			PC:SetupMaelstromBox(); PC:StyleMaelstromBox()
+			PC:SetupShieldBox(); PC:StyleShieldBox()
+		end
 	end)
 	ns.listen("BARS_LAYOUT", function() PC:Layout() end)
 	ns.listen("PROCS_CHANGED", function() PC:Refresh() end)

@@ -187,3 +187,63 @@ test("v17: Maelstrom blinkar vid 5 och Stormstrike blinkar", function()
 	check(not ss:IsShown() and not ss.glow:IsShown(), "dold Stormstrike: glöden av")
 	check(#MOCK.errors == 0, "inga fel: " .. tostring(MOCK.errors[1]))
 end)
+
+test("v17: sköldens laddningar via containern, rött vid få laddningar", function()
+	MOCK.learn("Lightning Shield")
+	ns.Spellbook:Scan()
+	MOCK.runTimers()
+	MOCK.combat = false
+	ns.char.procs.shield = true
+	ns.char.procs.shieldLow = 1
+	ns.char.procs.flash = true
+	PC:ResetShieldBox()
+	local calls = {}
+	local restore = fakeContainer(calls)
+	local box = PC:SetupShieldBox()
+	restore()
+	check(type(box) == "table", "containern byggd")
+	check(calls.slot == "shield" and calls.filter == "HELPFUL", "sköldslot")
+	check(calls.opts.candidateFilters.includeSpellIDs[10432], "Lightning Shield-ID i filtret")
+	check(calls.opts.candidateFilters.includeSpellIDs[408510], "Water Shield-ID i filtret")
+	check(calls.count ~= nil, "spelet skriver talet")
+	local cover
+	for _, o in ipairs(calls.bars or {}) do
+		if o.minApplications == 1 and o.maxApplications == 2 then cover = true end
+	end
+	check(cover, "täckbilden full över 1 laddning")
+	-- Klienten har inte visat något tal än: inget rött (annars blinkar det om laddningar inte räknas)
+	check(not box.red:IsShown(), "inget rött innan laddningar setts")
+	MOCK.auras.player = { { name = "Lightning Shield", spellId = 10432, applications = 3, auraInstanceID = 55 } }
+	PC:UpdateShield()
+	check(box.red:IsShown() and box.redPulse.on == true, "laddningar räknas: rött blinkar under täckbilden")
+	local f = _G.FarseerProcshield
+	check(f:IsShown() and f.count:GetText() == "", "vår ikon syns, spelet skriver talet")
+	check(not f.glow:IsShown(), "3 laddningar: ingen ram")
+	MOCK.auras.player = { { name = "Lightning Shield", spellId = 10432, applications = 1, auraInstanceID = 55 } }
+	PC:UpdateShield()
+	check(f.glow:IsShown(), "1 laddning (läsbart): ramen blinkar också")
+	check(PC:ShieldBoxState() == "active", "debug: active (" .. PC:ShieldBoxState() .. ")")
+	-- Flash av: fast rött
+	ns.char.procs.flash = false
+	PC:StyleShieldBox()
+	PC:UpdateShield()
+	check(box.red:IsShown() and box.redPulse.on == false, "flash av: fast rött")
+	check(not f.glow:IsShown(), "flash av: ingen blinkande ram")
+	ns.char.procs.flash = true
+	-- Ny gräns: täckbilden får nya värden
+	calls.bars = {}
+	ns.char.procs.shieldLow = 2
+	PC:StyleShieldBox()
+	local two
+	for _, o in ipairs(calls.bars) do
+		if o.minApplications == 2 and o.maxApplications == 3 then two = true end
+	end
+	check(two, "gräns 2: täckbilden full över 2")
+	ns.char.procs.shieldLow = 1
+	MOCK.auras.player = {}
+	PC:ResetShieldBox()
+	MOCK.unlearn("Lightning Shield")
+	ns.Spellbook:Scan()
+	MOCK.runTimers()
+	check(#MOCK.errors == 0, "inga fel: " .. tostring(MOCK.errors[1]))
+end)

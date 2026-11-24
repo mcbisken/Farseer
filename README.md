@@ -41,6 +41,7 @@ Kopierar `Farseer\` till `C:\SPEL\World of Warcraft\_forever_\Interface\AddOns\F
 | **Under vatten** (v1.6) | Varning när luften tar slut (förslag: Water Breathing och antal Shiny Fish Scale) och när Water Breathing har under en minut kvar. |
 | **Varningar** (v1.7) | Prioritet: kritiskt (fear på dig, bossens fear, kick, andning) > råd (totemförslag, låg mana) > info (totem dog/går ut/utom räckhåll, purge). En info-varning kan inte dölja "TREMOR!" längre. Var varningar visas (överallt / grupp+instans / instanser / av), inget ljud för info, tyst solo (inget "DROP TOTEMS!", räckvidds- eller utgångsvarningar när du levlar). |
 | **Maelstrom** (v1.7) | Ritas av spelets egen aura-container (som ShamanForever): ikon, tid kvar, antal (guld vid 5), stackbar och markering vid 5 fungerar även i strid när stackarna är secret. `/farseer debug` visar läget. |
+| **Blinkning** (v1.7.1–1.7.4) | Maelstrom blinkar vid 5 (guldram + blixt), Stormstrike, Clearcasting och Flurry blinkar medan de är uppe. Skölden ritas av en egen aura-container: rött blinkar under en täckbild när laddningarna är nere på gränsen (även i strid). "Flash procs" stänger av blinkningen. `/farseer debug` visar "shield display". |
 | **Inställningar** | Visa/dölj, skala och storlek för alla bars, lås upp/flytta, minimap-ikon, påminnelser, återställ. |
 
 Minimap-ikon: vänsterklick = inställningar, högerklick = lås upp/lås bars, mittenklick = PvE/PvP, dra = flytta ikonen.
@@ -62,7 +63,7 @@ med alla inställningskombinationer, keybind-mallar + återställning, Call of t
 secret values, påminnelser, alla UI-flikar, slashkommandon och kontroll av oavsiktliga globaler.
 `tests/tests_v11.lua` täcker v1.1 (tysk klient, HUD, totemdöd, profiler, utrustning, trainer, checklista, T0.5, BiS-jämförelse).
 `tests/tests_v12.lua` täcker v1.2 (procs, mana, purge, casts, DR, totemräckvidd, spec, click-cast, raid-totems, downranking).
-2903 kontroller, 0 fel (2026-11-24). Addonet visar all text på engelska (kommentarer i koden är på svenska).
+2919 kontroller, 0 fel (2026-11-24). Addonet visar all text på engelska (kommentarer i koden är på svenska).
 
 ## Inte verifierat i riktiga klienten än
 Testerna kör mot en mock, inte mot spelet. Saker att kolla första gången i spelet:
