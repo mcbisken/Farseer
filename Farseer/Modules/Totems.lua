@@ -8,6 +8,7 @@ local state = {}   -- [slot] = { name, start, dur }
 local lastCast, destroyed = {}, {}   -- [slot] = GetTime() för egen cast / högerklick-borttagning
 local lastRecall = -100
 local lastTotemicCall = -100   -- Totemic Call flyttar totems: PLAYER_TOTEM_UPDATE då betyder inte att de dog
+local bar, buttons = nil, {}   -- timer-baren (byggs i BuildBar)
 
 local function baseName(name)
 	if type(name) ~= "string" then return nil end
@@ -134,16 +135,27 @@ end
 ---------------------------------------------------------------------------------------------------
 local range = {}   -- [slot] = { name, start, seen, miss, out, warned }
 
--- true = buffen är på dig, false = inte, nil = går inte att läsa
-function TO:BuffState(name)
+-- Får auror läsas just nu? (spelet gör dem secret i strid)
+local function aurasReadable()
+	return not (C_Secrets and C_Secrets.ShouldAurasBeSecret and ns.get(C_Secrets.ShouldAurasBeSecret) ~= false)
+end
+
+-- true = buffen är på enheten (standard: dig), false = inte, nil = går inte att läsa
+function TO:BuffState(name, unit)
+	unit = unit or "player"
 	local b = ns.TOTEM_BUFFS[name]
 	local U = C_UnitAuras
 	if not b or not U then return nil end
-	if C_Secrets and C_Secrets.ShouldAurasBeSecret and ns.get(C_Secrets.ShouldAurasBeSecret) ~= false then return nil end
-	if U.GetPlayerAuraBySpellID then
+	if not aurasReadable() then return nil end
+	local checked = false
+	-- Per spell-ID: spelarens egen funktion, för andra enheter GetUnitAuraBySpellID om klienten har den
+	local byID = unit == "player" and U.GetPlayerAuraBySpellID or U.GetUnitAuraBySpellID
+	if byID then
 		for _, id in ipairs(b.ids) do
-			local ok, a = pcall(U.GetPlayerAuraBySpellID, id)
+			local ok, a
+			if unit == "player" then ok, a = pcall(byID, id) else ok, a = pcall(byID, unit, id) end
 			if not ok or ns.isSecret(a) then return nil end
+			checked = true
 			if a ~= nil then return true end
 		end
 	end
@@ -151,11 +163,14 @@ function TO:BuffState(name)
 		local loc = ns.get(C_Spell.GetSpellName, b.ids[1])
 		local names = (type(loc) == "string" and loc ~= b.name) and { loc, b.name } or { b.name }
 		for _, n in ipairs(names) do
-			local ok, a = pcall(U.GetAuraDataBySpellName, "player", n, "HELPFUL")
+			local ok, a = pcall(U.GetAuraDataBySpellName, unit, n, "HELPFUL")
 			if not ok or ns.isSecret(a) then return nil end
+			checked = true
 			if a ~= nil then return true end
 		end
 	end
+	-- Ingen uppslagning gick att göra: okänt, inte "saknas"
+	if not checked then return nil end
 	return false
 end
 
@@ -204,6 +219,138 @@ function TO:CheckRange()
 		end
 	end
 	self:UpdateRangeMarks()
+end
+
+---------------------------------------------------------------------------------------------------
+-- Totems som snart går ut: en varning per totem (per cast), totems som går ut samtidigt i samma ruta
+---------------------------------------------------------------------------------------------------
+local expWarned = {}   -- [slot] = start för totemet som redan varnats
+local EXPIRE_GROUP = 5 -- totems som går ut inom så här många sekunder efter tröskeln tas med i samma varning
+
+function TO:CheckExpiry(now)
+	local cfg = ns.char.totemAlerts
+	if not cfg or not cfg.expire then return nil end
+	now = now or GetTime()
+	expire()
+	if ns.get(UnitIsDeadOrGhost, "player") == true or ns.get(UnitOnTaxi, "player") == true then return nil end
+	local sec = tonumber(cfg.expireSec) or 20
+	local function eligible(slot, s)
+		if expWarned[slot] and math.abs(expWarned[slot] - s.start) < 1 then return false end
+		if cfg.expireLongOnly ~= false and s.dur < 60 then return false end
+		return true
+	end
+	local trigger = false
+	for slot, s in pairs(state) do
+		local left = s.start + s.dur - now
+		if left > 0 and left <= sec and eligible(slot, s) then trigger = true end
+	end
+	if not trigger then return nil end
+	local list = {}
+	for slot = 1, 4 do
+		local s = state[slot]
+		local left = s and s.start + s.dur - now
+		if s and left > 0 and left <= sec + EXPIRE_GROUP and eligible(slot, s) then
+			expWarned[slot] = s.start
+			table.insert(list, { name = s.name, slot = slot, remaining = left })
+		end
+	end
+	table.sort(list, function(a, b) return a.remaining < b.remaining end)
+	local names = {}
+	for i, e in ipairs(list) do names[i] = e.name end
+	local secs = math.max(1, math.ceil(list[1].remaining))
+	local title = #list == 1 and string.format("TOTEM EXPIRES IN %ds", secs) or string.format("TOTEMS EXPIRE IN %ds", secs)
+	local hint = (ns.Bars and ns.Bars.CallSpell and ns.Bars:CallSpell()) and "Right-click a situation to re-drop the set"
+		or "Recast them before they run out"
+	if ns.Spellbook:Knows(ns.TOTEMIC_CALL) then hint = hint .. " (Totemic Call doesn't refresh the timer)" end
+	local el = ns.Spellbook:TotemElement(list[1].name)
+	ns.Alert:Flash("expire", list[1].name, title, table.concat(names, ", ") .. ". " .. hint .. ".",
+		el and ns.ELEMENT_COLOR[el] or { 1, 0.82, 0 }, 3)
+	ns.fire("TOTEMS_EXPIRING", list)
+	return list
+end
+
+---------------------------------------------------------------------------------------------------
+-- Gruppens täckning (utanför strid): vilka i gruppen saknar buffen från dina buff-totems
+-- Bara medlemmar som finns, är online, lever och är inom räckhåll (UnitInRange, ~40 m) räknas; allt som
+-- inte går att läsa hoppas över. Ett totem rapporteras bara om dess buff setts på någon (dig eller
+-- gruppen), så ett okänt buff-ID inte ger falsklarm.
+---------------------------------------------------------------------------------------------------
+local coverage, coverageCount = nil, 0
+local coverageAt = -100
+
+local function memberOK(u)
+	if ns.get(UnitExists, u) ~= true then return false end
+	if ns.get(UnitIsConnected, u) == false then return false end
+	if ns.get(UnitIsDeadOrGhost, u) ~= false then return false end
+	local ok, inRange, checked = ns.getAll(UnitInRange, u)
+	if not ok or inRange ~= true or checked == false then return false end
+	return true
+end
+
+-- Lista med { totem, slot, missing = { namn } } (bara totems där någon saknar buffen), {} om alla har
+-- den, nil om det inte går att avgöra (i strid, secret auror, avstängt)
+function TO:PartyCoverage()
+	local cfg = ns.char.totemAlerts
+	if not cfg or not cfg.party or InCombatLockdown() or not aurasReadable() then return nil end
+	expire()
+	local units = {}
+	for i = 1, 4 do
+		local u = "party" .. i
+		if memberOK(u) then table.insert(units, u) end
+	end
+	local out = {}
+	if #units == 0 then return out end
+	local now = GetTime()
+	for slot = 1, 4 do
+		local s = state[slot]
+		-- Nysatt totem: buffen kommer vid första pulsen
+		if s and ns.TOTEM_BUFFS[s.name] and now - s.start >= 3 then
+			local r = range[slot]
+			local verified = (r and r.name == s.name and math.abs(r.start - s.start) <= 1 and r.seen)
+				or self:BuffState(s.name) == true
+			local missing = {}
+			for _, u in ipairs(units) do
+				local st = self:BuffState(s.name, u)
+				if st == true then
+					verified = true
+				elseif st == false then
+					table.insert(missing, ns.get(UnitName, u) or u)
+				end
+			end
+			if verified and #missing > 0 then table.insert(out, { totem = s.name, slot = slot, missing = missing }) end
+		end
+	end
+	return out
+end
+
+function TO:Coverage() return coverage end
+function TO:CoverageCount() return coverageCount end
+
+-- off = true: töm (striden börjar; PLAYER_REGEN_DISABLED kommer innan InCombatLockdown blir sant)
+function TO:UpdateCoverage(off)
+	coverageAt = GetTime()
+	local list = not off and self:PartyCoverage() or nil
+	coverage = list
+	local n = 0
+	for _, c in ipairs(list or {}) do n = n + #c.missing end
+	coverageCount = n
+	if bar and bar.cover then
+		bar.cover.text:SetText(n == 1 and "1 missing buff" or (n .. " missing buffs"))
+		bar.cover:SetShown(n > 0)
+	end
+	self:UpdateRangeMarks()
+	return list
+end
+
+local function coverageTooltip(self)
+	GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+	GameTooltip:SetText("Missing totem buffs")
+	for _, c in ipairs(coverage or {}) do
+		GameTooltip:AddLine(c.totem .. ": " .. table.concat(c.missing, ", "), 1, 1, 1, true)
+	end
+	GameTooltip:AddLine("Party members within ~40 yd who don't have the buff (totems reach 20-30 yd). Out of combat only.",
+		0.6, 0.8, 1, true)
+	GameTooltip:Show()
 end
 
 -- Multicast-baren har knapparna i ordningen Earth, Fire, Water, Air (Blizzards TOTEM_PRIORITIES),
@@ -289,8 +436,6 @@ end)
 ---------------------------------------------------------------------------------------------------
 -- Timer-bar
 ---------------------------------------------------------------------------------------------------
-local bar, buttons = nil, {}
-
 local function fmtTime(s)
 	if s >= 60 then return string.format("%d:%02d", math.floor(s / 60), math.floor(s % 60)) end
 	return string.format("%d", math.floor(s + 0.5))
@@ -366,7 +511,8 @@ function TO:BuildBar()
 	cb:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:SetText("Totemic Call")
-		GameTooltip:AddLine("Click: move your active totems to you. Glows when a totem is out of range.", 1, 1, 1, true)
+		GameTooltip:AddLine("Click: move your active totems to you. Glows when a totem is out of range or a party "
+			.. "member near you is missing a totem buff.", 1, 1, 1, true)
 		GameTooltip:AddLine("Right-click: Totemic Recall (pick them up)", 0.6, 0.8, 1)
 		GameTooltip:Show()
 	end)
@@ -375,6 +521,18 @@ function TO:BuildBar()
 	self.callButton = cb
 	_G["BINDING_NAME_CLICK FarseerTotemicCall:LeftButton"] = "Totemic Call"
 	_G["BINDING_NAME_CLICK FarseerTotemicCall:RightButton"] = "Totemic Recall"
+	-- "2 missing buffs" under baren (vanlig ram, får visas/döljas i strid); håll musen över för namnen
+	local cover = CreateFrame("Frame", nil, bar)
+	cover:SetSize(140, 14)
+	cover:SetPoint("TOPLEFT", bar, "BOTTOMLEFT", 0, -2)
+	cover.text = cover:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+	cover.text:SetPoint("LEFT", cover, "LEFT", 0, 0)
+	cover.text:SetTextColor(1, 0.6, 0.2)
+	cover:EnableMouse(true)
+	cover:SetScript("OnEnter", coverageTooltip)
+	cover:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	cover:Hide()
+	bar.cover = cover
 	bar:SetShown(cfg.show)
 	self:ApplyCallButton()
 	-- Timertext uppdateras ofta, ikoner/cooldown bara vid ändringar
@@ -382,6 +540,13 @@ function TO:BuildBar()
 	C_Timer.NewTicker(1, function()
 		local ok, err = pcall(TO.CheckRange, TO)
 		if not ok then ns.report(err) end
+		ok, err = pcall(TO.CheckExpiry, TO)
+		if not ok then ns.report(err) end
+		-- Gruppens buffar: var 2:a sekund
+		if GetTime() - coverageAt >= 2 then
+			ok, err = pcall(TO.UpdateCoverage, TO)
+			if not ok then ns.report(err) end
+		end
 	end)
 end
 
@@ -410,8 +575,9 @@ function TO:UpdateRangeMarks()
 		b.range:SetShown(out)
 		b.rangeText:SetText(out and "OOR" or "")
 	end
+	-- Totemic Call lyser när ett totem inte når dig eller någon i gruppen (inom räckhåll) saknar en buff
 	if self.callButton then
-		if self:AnyOutOfRange() then self.callButton.glow:On() else self.callButton.glow:Off() end
+		if self:AnyOutOfRange() or coverageCount > 0 then self.callButton.glow:On() else self.callButton.glow:Off() end
 	end
 end
 
@@ -496,6 +662,10 @@ function TO:OnShamanLogin()
 		TO:ApplyCallButton()
 	end)
 	ns.listen("SPELLS_CHANGED", function() TO:ApplyCallButton() end)
+	-- Täckningen gäller bara utanför strid: töm direkt när striden börjar
+	ns.listen("COMBAT_START", function() TO:UpdateCoverage(true) end)
+	ns.listen("TOTEMS_CHANGED", function() TO:UpdateCoverage() end)
+	ns.on("GROUP_ROSTER_UPDATE", function() TO:UpdateCoverage() end)
 end
 
 function TO:SetShown(show)

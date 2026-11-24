@@ -111,6 +111,109 @@ end
 ns.CHECK_FOOD = { "Well Fed" }
 ns.CHECK_FLASK = { "^Flask of", "Elixir", "Spirit of Zanza", "Mageblood", "Supreme Power" }
 
+-- Vapenolja/slipsten (stackar med imbues i Forever): { mönster (gemener, vanlig text), typ }.
+-- "caster" = olja för Elemental/Resto, "melee" = sten för Enhancement. Matchar både tooltipraden på
+-- vapnet ("Brilliant Wizard Oil (30 min)", "Sharpened (+8 Damage)") och föremålen i väskorna.
+ns.CHECK_OIL = {
+	{ "wizard oil", "caster" },
+	{ "mana oil", "caster" },
+	{ "sharpening stone", "melee" },
+	{ "weightstone", "melee" },
+	{ "sharpened (", "melee" },
+	{ "weighted (", "melee" },
+}
+
+local function oilKind(text)
+	local low = text:lower()
+	for _, p in ipairs(ns.CHECK_OIL) do
+		if low:find(p[1], 1, true) then return p[2] end
+	end
+end
+
+-- Namn på oljan/stenen på main hand-vapnet + typ, false = ingen, nil = går inte att läsa (secret/inget API)
+function LV:WeaponOil()
+	local fn = C_TooltipInfo and C_TooltipInfo.GetInventoryItem
+	if not fn then return nil end
+	local data = ns.get(fn, "player", 16)
+	local lines = ns.field(data, "lines")
+	if type(lines) ~= "table" then return nil end
+	local unreadable = false
+	for i = 1, #lines do
+		local line = lines[i]
+		local ok, text = pcall(function() return line.leftText end)
+		if not ok or ns.isSecret(line) or ns.isSecret(text) then
+			unreadable = true
+		elseif type(text) == "string" then
+			local kind = oilKind(text)
+			if kind then
+				-- "Brilliant Wizard Oil (30 min)" -> "Brilliant Wizard Oil"
+				local name = ns.trim((text:gsub("%s*%(%d+%s*%a*%)%s*$", "")))
+				return name, kind
+			end
+		end
+	end
+	if unreadable then return nil end
+	return false
+end
+
+local function bagItemName(info)
+	local link = ns.field(info, "hyperlink")
+	if type(link) == "string" then
+		local n = link:match("%[(.-)%]")
+		if n then return n end
+	end
+	local id = ns.field(info, "itemID")
+	if not id then return nil end
+	local n = C_Item and (ns.get(C_Item.GetItemNameByID, id) or ns.get(C_Item.GetItemInfo, id))
+	if type(n) == "string" then return n end
+	return nil
+end
+
+-- Antal oljor/stenar i väskorna (kind = "caster"/"melee"/nil = alla) + namnet på den första; nil = okänt
+function LV:OilsInBags(kind)
+	local C = C_Container
+	if not (C and C.GetContainerNumSlots and C.GetContainerItemInfo) then return nil end
+	local total, first = 0, nil
+	for bag = 0, (tonumber(NUM_BAG_SLOTS) or 4) do
+		local slots = ns.get(C.GetContainerNumSlots, bag)
+		for slot = 1, (type(slots) == "number" and slots or 0) do
+			local info = ns.get(C.GetContainerItemInfo, bag, slot)
+			local name = info and bagItemName(info)
+			local k = name and oilKind(name)
+			if k and (not kind or k == kind) then
+				local n = ns.field(info, "stackCount")
+				total = total + (type(n) == "number" and n or 1)
+				first = first or name
+			end
+		end
+	end
+	return total, first
+end
+
+-- Tips för oljeraden: vad specen vill ha + vad som finns i väskorna
+function LV:OilTip(foundKind)
+	local spec = ns.char.bisSpec or (ns.Spec and ns.Spec.Detect and ns.Spec:Detect())
+	local want = spec == "enhancement" and "melee" or "caster"
+	local parts = {}
+	if spec == "enhancement" then
+		table.insert(parts, "Enhancement: use a sharpening stone or weightstone.")
+	elseif spec == "restoration" then
+		table.insert(parts, "Restoration: use Mana Oil (or Wizard Oil).")
+	else
+		table.insert(parts, "Elemental: use Wizard Oil (or Mana Oil).")
+	end
+	if foundKind and foundKind ~= want then
+		table.insert(parts, want == "melee" and "Oil is meant for casters." or "Stones only add melee damage.")
+	end
+	local n, first = self:OilsInBags(want)
+	if n == 0 then
+		table.insert(parts, "None in bags.")
+	elseif n then
+		table.insert(parts, string.format("In bags: %d (%s).", n, first or "?"))
+	end
+	return table.concat(parts, " ")
+end
+
 local function lowestDurability()
 	local low
 	for slot = 1, 18 do
@@ -138,6 +241,31 @@ function LV:Checklist()
 		if has and left and left < 10 * 60 then okI = false end
 		add(okI, "Weapon imbue" .. (left and has and string.format(" (%d min left)", math.floor(left / 60)) or ""),
 			"At least 10 minutes left.")
+	end
+	local rem = ns.char.reminders or {}
+	local RE = ns.Reminders
+	if rem.offhand ~= false and RE.OffhandSpell and RE:OffhandSpell() and RE:OffhandWeapon() == true then
+		local has, left = RE:OffhandImbue()
+		local okO = has
+		if has and left and left < 10 * 60 then okO = false end
+		add(okO, "Off-hand imbue" .. (left and has and string.format(" (%d min left)", math.floor(left / 60)) or ""),
+			"At least 10 minutes left. The off-hand reminder button applies " .. RE:OffhandSpell() .. ".")
+	end
+	-- Vapenolja/slipsten på main hand
+	if rem.oil ~= false and ns.get(GetInventoryItemID, "player", 16) ~= nil then
+		local name, kind = self:WeaponOil()
+		local text = "Weapon oil/stone"
+		if name then text = text .. " (" .. name .. ")"
+		elseif name == nil then text = text .. " (can't read)"
+		else
+			-- Saknas: visa direkt om det finns något i väskorna (tipset säger vilken sort)
+			local n = self:OilsInBags()
+			if n == 0 then text = text .. " (none in bags)"
+			elseif n then text = text .. string.format(" (%d in bags)", n) end
+		end
+		local okOil
+		if name ~= nil then okOil = name and true or false end
+		add(okOil, text, self:OilTip(kind))
 	end
 	-- Mat och flaska/elixir
 	local buffs = readable and playerBuffs()

@@ -85,14 +85,23 @@ local function build(p)
 	c1:SetPoint("TOPLEFT", rh, "BOTTOMLEFT", 0, -6)
 	local c2 = track(UI.Check(p, "Remind about weapon imbue", function() return rem.imbue end, function(v) rem.imbue = v end))
 	c2:SetPoint("TOPLEFT", c1, "BOTTOMLEFT", 0, 0)
+	local c4 = track(UI.Check(p, "Remind about off-hand imbue", function() return rem.offhand ~= false end, function(v)
+		rem.offhand = v
+		ns.Reminders:Refresh()
+	end, "Dual wield: a third button lights up when your off-hand weapon has no imbue. Click it to cast the imbue on the off-hand."))
+	c4:SetPoint("TOPLEFT", c2, "BOTTOMLEFT", 0, 0)
 	local c3 = track(UI.Check(p, "Prefer Water Shield", function() return rem.preferWaterShield end, function(v)
 		rem.preferWaterShield = v
 		ns.Reminders:Refresh()
 	end, "The shield button and the FS Shield macro use Water Shield (if you have the talent)."))
-	c3:SetPoint("TOPLEFT", c2, "BOTTOMLEFT", 0, 0)
+	c3:SetPoint("TOPLEFT", c4, "BOTTOMLEFT", 0, 0)
+	local c5 = track(UI.Check(p, "Weapon oil/stone in checklist", function() return rem.oil ~= false end,
+		function(v) rem.oil = v end,
+		"In Forever oils and sharpening stones stack with imbues. Casters: Wizard/Mana Oil. Enhancement: sharpening stones or weightstones."))
+	c5:SetPoint("TOPLEFT", c3, "BOTTOMLEFT", 0, 0)
 	local mins = track(UI.Stepper(p, "Warn when imbue < (min)", 1, 30, 1, function() return rem.imbueMinutes or 5 end,
 		function(v) rem.imbueMinutes = v end))
-	mins:SetPoint("TOPLEFT", c3, "BOTTOMLEFT", 4, -4)
+	mins:SetPoint("TOPLEFT", c5, "BOTTOMLEFT", 4, -4)
 	local il = UI.Label(p, "Imbue button casts:", "GameFontNormalSmall")
 	il:SetPoint("TOPLEFT", mins, "BOTTOMLEFT", 0, -8)
 	local drop = track(UI.Dropdown(p, 190, function()
@@ -106,9 +115,23 @@ local function build(p)
 		return items
 	end, function(v) rem.imbueSpell = v; ns.Reminders:Refresh() end))
 	drop:SetPoint("LEFT", il, "RIGHT", 6, 0)
+	-- Off-hand: samma lista, "auto" = Flametongue Weapon. Dropdownerna står i linje under varandra.
+	local ol = UI.Label(p, "Off-hand casts:", "GameFontNormalSmall")
+	ol:SetPoint("TOPLEFT", il, "BOTTOMLEFT", 0, -16)
+	local odrop = track(UI.Dropdown(p, 190, function()
+		return rem.offhandSpell == "auto" and "Automatic (Flametongue)" or rem.offhandSpell
+	end, function()
+		local items = { { text = "Automatic (Flametongue)", value = "auto" } }
+		for _, s in ipairs(ns.IMBUES) do
+			local k = ns.Spellbook:Knows(s)
+			table.insert(items, { text = s, value = s, icon = ns.spellIcon(s), color = k and nil or { 0.55, 0.55, 0.55 } })
+		end
+		return items
+	end, function(v) rem.offhandSpell = v; ns.Reminders:Refresh() end))
+	odrop:SetPoint("TOPLEFT", drop, "BOTTOMLEFT", 0, -4)
 
 	local dh = UI.Header(p, "Maintenance")
-	dh:SetPoint("TOPLEFT", il, "BOTTOMLEFT", -4, -24)
+	dh:SetPoint("TOPLEFT", ol, "BOTTOMLEFT", -4, -20)
 	local dbg = UI.Button(p, "Show errors/debug", 140, 24, function() ns.Slash("debug") end)
 	dbg:SetPoint("TOPLEFT", dh, "BOTTOMLEFT", 0, -6)
 	local wipeChar = UI.Button(p, "Reset character", 160, 24, function()

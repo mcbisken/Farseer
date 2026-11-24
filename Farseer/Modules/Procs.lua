@@ -1,5 +1,6 @@
 -- Procs och larm: Maelstrom Weapon-stackar, laddningar på skölden, Windfury-procs, låg mana, purge på
--- target, fiendens casts (kick!), diminishing returns och Blizzards förslag på nästa spell.
+-- target, fiendens casts (kick!), diminishing returns och Blizzards förslag på nästa spell. v1.6:
+-- Clearcasting/Stormstrike/Flurry, nedräkning för Mana Tide/Rage of the Farseer och andningsvarning.
 -- Allt är vanliga (osäkra) ramar som uppdateras även i strid. När spelet gör värden secret visas de
 -- ändå där det går (texter och bars tar emot secret-värden), men logik som jämför tal (ljud, varningar)
 -- körs bara när värdet går att läsa.
@@ -15,6 +16,37 @@ local manaArmed = true
 local purgeWarned = {}
 local casts = {}         -- [unit] = { name, start, ends, notInt, channel }
 local dr = {}            -- [enhet] = { [kategori] = { start, dur, level, immune } }
+local procInstance = {}  -- [proc-nyckel] = auraInstanceID (reserv när uppslaget blockeras)
+local cdActive = {}      -- [nyckel] = { ends, def, at }
+local breath = { token = 0 }
+local wbWarned           -- Water Breathing-instansen vi redan varnat för
+
+-- Procs bredvid Maelstrom. ids = buffens spell-ID:n (Stormstrike-buffens ID:n är okända i Forever: bara
+-- namnet), file = ikonfilen som sista utväg, requires = spell/talang som måste finnas. Clearcasting och
+-- Flurry visas bara när buffen finns, så de behöver ingen kontroll av talangen.
+local PROCS = {
+	{ key = "clearcast", cfg = "clearcast", name = "Clearcasting", ids = { 16246 },
+		file = "Interface\\Icons\\Spell_Shadow_ManaBurn",
+		tip = "Elemental Focus: your next damage spell costs less mana." },
+	{ key = "stormstrike", cfg = "stormstrike", name = "Stormstrike", ids = {}, requires = "Stormstrike", target = true,
+		file = "Interface\\Icons\\Ability_Shaman_Stormstrike",
+		tip = "Stormstrike is up: your next Nature spells (shocks, Lightning Bolt) hit harder." },
+	{ key = "flurry", cfg = "flurry", name = "Flurry", ids = { 16257, 16277, 16278, 16279, 16280 },
+		file = "Interface\\Icons\\Ability_GhoulFrenzy",
+		tip = "Flurry: faster attacks for the next swings. The number is swings left." },
+}
+PC.PROCS = PROCS
+
+-- Nedräkning efter egna casts. buff = läs tiden ur buffen på dig när den går att läsa.
+local CD_TIMERS = {
+	["Mana Tide Totem"] = { key = "manatide", spell = "Mana Tide Totem", dur = 12, msg = "Mana Tide Totem up (12 s)" },
+	["Rage of the Farseer"] = { key = "farseer", spell = "Rage of the Farseer", dur = 15, buff = true,
+		msg = "Rage of the Farseer up" },
+}
+PC.CD_TIMERS = CD_TIMERS
+
+local BREATH_WARN = 20   -- varna när så här många sekunder luft är kvar
+local WB_LOW = 60        -- Water Breathing: varna när mindre än så här är kvar (simmar, utanför strid)
 
 local function cfg() return ns.char.procs end
 
@@ -100,7 +132,7 @@ local function makeSensor(parent, max)
 	return s
 end
 
-local ORDER = { "maelstrom", "shield", "purge", "assisted" }
+local ORDER = { "maelstrom", "clearcast", "stormstrike", "flurry", "shield", "manatide", "farseer", "purge", "assisted" }
 
 function PC:Build()
 	local c = ns.char.bars.procs
@@ -112,6 +144,13 @@ function PC:Build()
 		.. "the next Lightning Bolt/Chain Lightning/heal is instant.")
 	mw.title = "Maelstrom Weapon"
 	mw.sensor = makeSensor(mw, ns.MAELSTROM_MAX or 5)
+	for _, def in ipairs(PROCS) do makeIcon(def.key, def.tip).title = def.name end
+	for _, def in pairs(CD_TIMERS) do
+		local f = makeIcon(def.key, def.spell .. " is active. The number is seconds left.")
+		f.title = def.spell
+		f.timer = f:CreateFontString(nil, "OVERLAY", "NumberFontNormalLarge")
+		f.timer:SetPoint("CENTER", 0, 0)
+	end
 	local sh = makeIcon("shield", "Charges left on your shield. Red number = running out, recast it.")
 	sh.title = "Shield"
 	makeIcon("purge", function(self)
@@ -255,6 +294,246 @@ function PC:UpdateMaelstrom()
 		f.icon:SetDesaturated(false)
 		f.glow:Off()
 	end
+end
+
+---------------------------------------------------------------------------------------------------
+-- Clearcasting, Stormstrike, Flurry
+---------------------------------------------------------------------------------------------------
+-- Ikonen: buffens egen (kan vara secret, SetTexture tar emot den) -> spell-ID:n -> namnet -> filen
+function PC:ProcIcon(def, a)
+	if a ~= nil and not ns.isSecret(a) then
+		local ok, ic = pcall(function() return a.icon end)
+		if ok and (ns.isSecret(ic) or ic ~= nil) then return ic end
+	end
+	local spell = def.requires or def.name
+	local ids = {}
+	local known = ns.Spellbook:ID(spell)
+	if known then table.insert(ids, known) end
+	for _, id in ipairs(def.ids or {}) do table.insert(ids, id) end
+	for _, id in ipairs((ns.SPELL_IDS and ns.SPELL_IDS[spell]) or {}) do table.insert(ids, id) end
+	for _, id in ipairs(ids) do
+		local t = C_Spell and ns.get(C_Spell.GetSpellTexture, id)
+		if t and t ~= 134400 then return t end
+	end
+	local t = C_Spell and ns.get(C_Spell.GetSpellTexture, ns.L(spell))
+	if t and t ~= 134400 then return t end
+	return def.file
+end
+
+-- Classic: Stormstrike är en debuff på target (+20 % Nature-skada). Leta efter din egen debuff med namnet.
+local function targetDebuff(name)
+	local U = C_UnitAuras
+	if not (U and U.GetAuraDataByIndex) then return nil end
+	local want = ns.L(name)
+	for i = 1, 40 do
+		local a = ns.get(U.GetAuraDataByIndex, "target", i, "HARMFUL|PLAYER")
+		if a == nil then return nil end
+		if ns.isSecret(a) then return nil end
+		local n = ns.field(a, "name")
+		if n == want then return a end
+	end
+end
+PC.TargetDebuff = targetDebuff
+
+function PC:UpdateProc(def)
+	local f = icons[def.key]
+	if not cfg()[def.cfg] or (def.requires and not ns.Spellbook:Knows(def.requires)) then
+		procInstance[def.key] = nil
+		setShown(f, false)
+		return
+	end
+	-- Att auran finns går att se även när den är secret (uppslaget ger ett secret-värde, inte nil)
+	local a = playerAura(def.ids, def.name, procInstance[def.key])
+	if a == nil and def.target then a = targetDebuff(def.name) end
+	if a == nil then
+		procInstance[def.key] = nil
+		setShown(f, false)
+		return
+	end
+	procInstance[def.key] = instanceOf(a) or procInstance[def.key]
+	if not pcall(f.icon.SetTexture, f.icon, self:ProcIcon(def, a)) then f.icon:SetTexture(def.file) end
+	local n, raw = applications(a)
+	-- En laddning (eller ingen) = ingen siffra
+	if n and n <= 1 then n = 0 end
+	showCount(f.count, n, raw)
+	setShown(f, true)
+end
+
+function PC:UpdateProcs()
+	for _, def in ipairs(PROCS) do self:UpdateProc(def) end
+end
+
+---------------------------------------------------------------------------------------------------
+-- Mana Tide Totem / Rage of the Farseer: nedräkning och meddelande i gruppen
+---------------------------------------------------------------------------------------------------
+-- Gruppens chattkanal, eller nil (solo)
+local function groupChannel()
+	local home = LE_PARTY_CATEGORY_HOME
+	local inst = LE_PARTY_CATEGORY_INSTANCE
+	if inst and IsInGroup and ns.get(IsInGroup, inst) == true and ns.get(IsInGroup, home) ~= true then
+		return "INSTANCE_CHAT"
+	end
+	if ns.get(IsInRaid) == true then return "RAID" end
+	local n = ns.get(GetNumGroupMembers) or 0
+	if type(n) == "number" and n > 0 then return "PARTY" end
+	return nil
+end
+
+function PC:Announce(msg)
+	local channel = groupChannel()
+	if not channel then return false end
+	-- Den globala SendChatMessage är på väg bort i nya klienter
+	local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
+	if not send then return false end
+	return (pcall(send, msg, channel))
+end
+
+-- Slutet på buffen om den går att läsa, annars nil
+local function buffEnds(def)
+	local a = playerAura(ns.SPELL_IDS and ns.SPELL_IDS[def.spell], def.spell)
+	if a == nil or ns.isSecret(a) then return nil end
+	local now = GetTime()
+	local exp = ns.field(a, "expirationTime")
+	if type(exp) == "number" and exp > now then return exp end
+	local dur = ns.field(a, "duration")
+	if type(dur) == "number" and dur > 0 then return now + dur end
+	return nil
+end
+
+function PC:OnPlayerCast(spellID)
+	if type(spellID) ~= "number" or ns.isSecret(spellID) then return end
+	local name = ns.canon(ns.get(C_Spell.GetSpellName, spellID))
+	local def = name and CD_TIMERS[name]
+	if not def or not cfg().cdTimers then return end
+	local now = GetTime()
+	local cur = cdActive[def.key]
+	if cur and now - cur.at < 1 then return end   -- samma cast två gånger
+	cdActive[def.key] = { ends = (def.buff and buffEnds(def)) or (now + def.dur), def = def, at = now }
+	local f = icons[def.key]
+	if f then
+		f.icon:SetTexture(ns.spellIcon(def.spell))
+		setShown(f, true)
+	end
+	self:UpdateTimers(now)
+	if cfg().announce then self:Announce(def.msg) end
+end
+
+-- Sekunder kvar på timern (nil = inte aktiv)
+function PC:TimerLeft(key)
+	local c = cdActive[key]
+	if not c then return nil end
+	return math.max(0, c.ends - GetTime())
+end
+
+-- Rage of the Farseer: buffen kan komma strax efter casten, läs om tiden medan den går
+function PC:RefineTimers()
+	for _, c in pairs(cdActive) do
+		if c.def.buff then
+			local e = buffEnds(c.def)
+			if e then c.ends = e end
+		end
+	end
+end
+
+function PC:UpdateTimers(now)
+	for _, def in pairs(CD_TIMERS) do
+		local f = icons[def.key]
+		local c = cdActive[def.key]
+		if c and (not cfg().cdTimers or c.ends <= now) then
+			cdActive[def.key] = nil
+			c = nil
+		end
+		if f then
+			if c then
+				f.timer:SetText(string.format("%d", math.ceil(c.ends - now)))
+			else
+				f.timer:SetText("")
+				setShown(f, false)
+			end
+		end
+	end
+end
+
+---------------------------------------------------------------------------------------------------
+-- Under vatten: andningen tar slut, Water Breathing håller på att gå ut
+---------------------------------------------------------------------------------------------------
+local function reagent(spell)
+	for _, r in ipairs(ns.REAGENTS or {}) do
+		if r.spell == spell then return r end
+	end
+end
+
+-- spell (eller nil), text
+function PC:BreathAdvice()
+	if not ns.Spellbook:Knows("Water Breathing") then return nil, "Swim up for air." end
+	local free = ns.Leveling and ns.Leveling.ReagentFree and ns.Leveling:ReagentFree()
+	local r = reagent("Water Breathing")
+	if free or not r then return "Water Breathing", "Cast Water Breathing — or swim up for air." end
+	local n = ns.get(C_Item and C_Item.GetItemCount, r.item)
+	if type(n) == "number" and n <= 0 then
+		return nil, "Swim up for air — no " .. r.name .. " for Water Breathing."
+	end
+	return "Water Breathing", "Cast Water Breathing (" .. r.name .. (type(n) == "number" and (": " .. n) or "")
+		.. ") — or swim up for air."
+end
+
+function PC:BreathWarning()
+	if not cfg().breath then return end
+	local spell, text = self:BreathAdvice()
+	ns.Alert:Flash("breath", spell or "Water Breathing", "BREATH RUNNING OUT", text, { 0.3, 0.7, 1 }, 4)
+end
+
+-- MIRROR_TIMER_START: timer, value (ms kvar), maxvalue, scale (-1 = minskar), paused, label
+function PC:OnMirrorStart(timer, value, _, scale, paused)
+	if ns.clean(timer) ~= "BREATH" then return end
+	breath.token = breath.token + 1
+	if not cfg().breath then return end
+	paused, scale = ns.clean(paused), ns.clean(scale)
+	if paused == true or (type(paused) == "number" and paused ~= 0) then return end
+	if type(scale) == "number" and scale > 0 then return end   -- fylls på: du är uppe
+	local v = ns.clean(value)
+	local left = type(v) == "number" and v / 1000 or nil
+	local tok = breath.token
+	breath.scheduled = left and math.max(0, left - BREATH_WARN) or 0
+	C_Timer.After(breath.scheduled, function()
+		if breath.token ~= tok then return end   -- timern stoppades eller startades om
+		-- Fortfarande gott om luft (t.ex. pausad en stund): vänta lite till
+		local now = GetMirrorTimerProgress and ns.get(GetMirrorTimerProgress, "BREATH")
+		if type(now) == "number" and now / 1000 > BREATH_WARN + 2 then
+			C_Timer.After(now / 1000 - BREATH_WARN, function()
+				if breath.token == tok then PC:BreathWarning() end
+			end)
+			return
+		end
+		PC:BreathWarning()
+	end)
+end
+
+function PC:BreathDelay() return breath.scheduled end
+
+function PC:OnMirrorStop(timer)
+	if ns.clean(timer) == "BREATH" then breath.token = breath.token + 1 end
+end
+
+-- Simmar utanför strid med Water Breathing som snart går ut: en varning per buff
+function PC:CheckWaterBreathing()
+	if not cfg().breath or InCombatLockdown() or ns.get(IsSwimming) ~= true then return end
+	local a = playerAura(ns.SPELL_IDS and ns.SPELL_IDS["Water Breathing"], "Water Breathing")
+	if a == nil or ns.isSecret(a) then return end
+	local exp = ns.field(a, "expirationTime")
+	if type(exp) ~= "number" or exp <= 0 then return end
+	local left = exp - GetTime()
+	if left <= 0 or left >= WB_LOW then return end
+	local key = ns.field(a, "auraInstanceID") or exp
+	if wbWarned == key then return end
+	wbWarned = key
+	local r = reagent("Water Breathing")
+	local n = r and ns.get(C_Item and C_Item.GetItemCount, r.item)
+	local text = string.format("%d s left. Recast it or head for the surface.", math.ceil(left))
+	if r and type(n) == "number" and n <= 0 and not (ns.Leveling and ns.Leveling.ReagentFree and ns.Leveling:ReagentFree()) then
+		text = string.format("%d s left and no %s — head for the surface.", math.ceil(left), r.name)
+	end
+	ns.Alert:Flash("waterbreathing", "Water Breathing", "WATER BREATHING ENDING", text, { 0.3, 0.7, 1 }, 4)
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -621,6 +900,7 @@ function PC:UpdateFast()
 	if not frame or not frame:IsShown() then return end
 	local now = GetTime()
 	updateWindfuryText(now)
+	self:UpdateTimers(now)
 	self:UpdateCast(now)
 	self:UpdateDR()
 	if self.dirty then
@@ -632,6 +912,8 @@ end
 function PC:Update()
 	if not frame or not frame:IsShown() then return end
 	self:UpdateMaelstrom()
+	self:UpdateProcs()
+	self:RefineTimers()
 	self:UpdateShield()
 	self:UpdatePurge()
 	self:UpdateAssisted()
@@ -651,6 +933,14 @@ castFrame:SetScript("OnEvent", function(_, event, unit)
 	if not ok then ns.report(err) end
 end)
 
+-- Egna casts (egen ram: castFrame ovan är registrerad för target/focus)
+local playerCastFrame = CreateFrame("Frame")
+playerCastFrame:SetScript("OnEvent", function(_, event, unit, _, spellID)
+	if event ~= "UNIT_SPELLCAST_SUCCEEDED" or unit ~= "player" then return end
+	local ok, err = pcall(PC.OnPlayerCast, PC, spellID)
+	if not ok then ns.report(err) end
+end)
+
 function PC:OnShamanLogin()
 	self:Build()
 	self:Layout()
@@ -659,6 +949,9 @@ function PC:OnShamanLogin()
 		"UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_INTERRUPTIBLE", "UNIT_SPELLCAST_NOT_INTERRUPTIBLE" }) do
 		pcall(castFrame.RegisterUnitEvent, castFrame, e, "target", "focus")
 	end
+	pcall(playerCastFrame.RegisterUnitEvent, playerCastFrame, "UNIT_SPELLCAST_SUCCEEDED", "player")
+	ns.on("MIRROR_TIMER_START", function(_, ...) PC:OnMirrorStart(...) end)
+	ns.on("MIRROR_TIMER_STOP", function(_, timer) PC:OnMirrorStop(timer) end)
 	ns.on("PLAYER_TARGET_CHANGED", function()
 		casts.target = nil
 		local c = hostile("target") and PC:ReadCast("target")
@@ -674,6 +967,8 @@ function PC:OnShamanLogin()
 	ns.listen("SPELLS_CHANGED", function() PC:Refresh() end)
 	C_Timer.NewTicker(0.5, function()
 		local ok, err = pcall(PC.CheckMana, PC)
+		if not ok then ns.report(err) end
+		ok, err = pcall(PC.CheckWaterBreathing, PC)
 		if not ok then ns.report(err) end
 	end)
 end

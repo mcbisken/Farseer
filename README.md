@@ -34,6 +34,11 @@ Kopierar `Farseer\` till `C:\SPEL\World of Warcraft\_forever_\Interface\AddOns\F
 | **Spec** (v1.2) | Specen läses från talangpoängen (eller Stormstrike/Mana Tide/Lightning Mastery). Vid byte: BiS-listan byter spec och profilen du kopplat till specen laddas (Profiler-fliken). |
 | **Healing** (v1.2) | Click-cast-mallar till Blizzards Click Casting (raidramar) med backup och återställning. Downranking: välj rank för Healing Wave, Lesser Healing Wave och Chain Heal, se mana per rank, makrona FS HW/LHW/CH Low. |
 | **Raid** (v1.2) | Totemfördelning mellan shamans efter varje grupps sammansättning; skicka i chatten, kopiera, eller lägg ditt set i Call. |
+| **Vapen** (v1.6) | Påminnelse + knapp för off-hand-imbue (dual wield; Flametongue Weapon som standard, `/cast` + `/use 17`). Checklistan visar off-hand-imbue och vapenolja/slipsten (rätt sort för din spec, antal i väskorna). |
+| **Totems** (v1.6) | Varning innan totems går ut (standard 20 s, bara totems ≥ 1 min). Vilka i gruppen saknar dina totembuffar (utanför strid, rad under totembaren, Totemic Call lyser). Situations- och kontratotemknappar blir blå när du inte har mana. Orange ram för Windfury + Flametongue i samma set. |
+| **Procs** (v1.6) | Egen flik. Ikoner för Clearcasting (Elemental Focus), Stormstrike (buff på dig eller din debuff på target) och Flurry. Nedräkning för Mana Tide Totem och Rage of the Farseer, valfritt meddelande i gruppen. Lava Burst på HUD:en. |
+| **Bossmods** (v1.6) | DBM/BigWigs: "TREMOR IN 4s" innan bossens fear/charm, Poison/Disease Cleansing innan gift/sjukdom. Pull-timer: lista över det som saknas (sköld, imbue, totems). |
+| **Under vatten** (v1.6) | Varning när luften tar slut (förslag: Water Breathing och antal Shiny Fish Scale) och när Water Breathing har under en minut kvar. |
 | **Inställningar** | Visa/dölj, skala och storlek för alla bars, lås upp/flytta, minimap-ikon, påminnelser, återställ. |
 
 Minimap-ikon: vänsterklick = inställningar, högerklick = lås upp/lås bars, mittenklick = PvE/PvP, dra = flytta ikonen.
@@ -55,7 +60,7 @@ med alla inställningskombinationer, keybind-mallar + återställning, Call of t
 secret values, påminnelser, alla UI-flikar, slashkommandon och kontroll av oavsiktliga globaler.
 `tests/tests_v11.lua` täcker v1.1 (tysk klient, HUD, totemdöd, profiler, utrustning, trainer, checklista, T0.5, BiS-jämförelse).
 `tests/tests_v12.lua` täcker v1.2 (procs, mana, purge, casts, DR, totemräckvidd, spec, click-cast, raid-totems, downranking).
-2381 kontroller, 0 fel (2026-11-24). Addonet visar all text på engelska (kommentarer i koden är på svenska).
+2589 kontroller, 0 fel (2026-11-24). Addonet visar all text på engelska (kommentarer i koden är på svenska).
 
 ## Inte verifierat i riktiga klienten än
 Testerna kör mot en mock, inte mot spelet. Saker att kolla första gången i spelet:
@@ -75,6 +80,16 @@ Testerna kör mot en mock, inte mot spelet. Saker att kolla första gången i sp
    - Totemräckvidd och purge fungerar bara när spelet visar buffar (oftast utanför strid). Buff-ID:n är Classics.
    - Spec: formatet på `GetTalentTabInfo` i Forever.
    - Chattmeddelanden från knappen Skicka i chatten kan vara blockerade i instanser.
+7. v1.6:
+   - Off-hand-imbue: att `/cast Flametongue Weapon` följt av `/use 17` lägger imbuen på off-hand, och att
+     `C_PaperDollInfo.OffhandHasWeapon` finns.
+   - Vapenolja: att tooltipraderna (`C_TooltipInfo`) visar "Brilliant Wizard Oil (30 min)" / "Sharpened (+8 Damage)".
+   - Gruppens totembuffar: `UnitInRange` är ~40 m, totems når 20–30 m, så någon på 30–40 m kan visas som "saknar".
+   - Manaknappar: `C_Spell.IsSpellUsable` (annars manakostnad mot `UnitPower`). Nästa totem i `/castsequence`
+     spåras av Farseer själv.
+   - Stormstrike: om det är en buff på dig eller en debuff på target i Forever (båda kollas).
+   - DBM/BigWigs: att callbackarna har samma argument som i retail.
+   - Andning: att `MIRROR_TIMER_START` ger luften i millisekunder.
 
 Data för v1.1: trainer-ranker från wowforever.wclbox.com, method.gg och conquestcapped; T0.5 från conquestcapped och
 wowhead.com/forever (bara 7 av 29 quest-ID:n bekräftade för Forever, resten är Classic-ID:n); bossmekanik från

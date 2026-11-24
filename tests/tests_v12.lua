@@ -486,7 +486,7 @@ end)
 ---------------------------------------------------------------------------------------------------
 test("v1.2: flikar, slash, profiler, secret", function()
 	ns.Options:Open()
-	for _, id in ipairs({ "alerts", "healing", "raid", "profiles" }) do ns.UI.SelectTab(id) end
+	for _, id in ipairs({ "procs", "alerts", "healing", "raid", "profiles" }) do ns.UI.SelectTab(id) end
 	rawset(_G, "C_ClickBindings", { GetProfileInfo = function() return {} end, SetProfileByInfo = function() end })
 	ns.UI.SelectTab("healing")
 	rawset(_G, "C_ClickBindings", nil)

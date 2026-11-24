@@ -51,6 +51,9 @@ def main():
     run_file(os.path.join(HERE, "tests.lua"))
     run_file(os.path.join(HERE, "tests_v11.lua"))
     run_file(os.path.join(HERE, "tests_v12.lua"))
+    for extra in ("tests_v16_weapons.lua", "tests_v16_totems.lua", "tests_v16_procs.lua"):
+        if os.path.exists(os.path.join(HERE, extra)):
+            run_file(os.path.join(HERE, extra))
     rt.execute("FINISH()")
     allowed = ("FarseerDB", "FarseerCharDB", "SLASH_FARSEER1", "SLASH_FARSEER2", "Farseer_OnCompartmentClick",
                "Farseer_OnCompartmentEnter", "Farseer_OnCompartmentLeave", "RESULTS", "FARSEER_NS", "TEST", "CHECK", "FINISH", "C_EncodingUtil")

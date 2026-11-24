@@ -186,7 +186,13 @@ function BA:BuildSituationBar()
 		b.glow = ns.addGlow(b, 1, 0.85, 0.2)
 		b.rec = ns.addGlow(b, 0.3, 1, 0.3)
 		b:SetScript("PreClick", function(self, button)
-			if button == "RightButton" and not InCombatLockdown() then BA:LoadCall(self.index) end
+			if button == "RightButton" then
+				if not InCombatLockdown() then BA:LoadCall(self.index) end
+				-- Utan Call-spell kör högerklick samma /castsequence som vänsterklick
+				if not BA:CallSpell() then BA:SeqPressed(self.index) end
+			else
+				BA:SeqPressed(self.index)
+			end
 		end)
 		b:SetScript("OnEnter", sitTooltip)
 		b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -258,6 +264,7 @@ function BA:ApplySituations()
 	sitBar:SetShown(cfg.show and shown > 0)
 	self:UpdateKeys()
 	self:UpdateMarks()
+	self:UpdateMana()
 end
 
 function BA:UpdateKeys()
@@ -340,6 +347,7 @@ function BA:ApplyCounter()
 	cntBar:SetShown(cfg.show and n > 0)
 	self:UpdateKeys()
 	self:UpdateCooldowns()
+	self:UpdateMana()
 end
 
 -- Cooldown-svep på kontratotems (Earthbind, Stoneclaw, Grounding ...). Vanliga ramar: fungerar i strid.
@@ -348,6 +356,143 @@ function BA:UpdateCooldowns()
 		if b.spell and b.cd then ns.setSpellCooldown(b.cd, b.spell) end
 	end
 end
+
+---------------------------------------------------------------------------------------------------
+-- /castsequence: vilket totem situationsknappen lägger härnäst
+-- Klientens sekvensläge går inte att läsa, så det följs här: ett tryck på knappen följt (inom 1 s) av en
+-- cast av ett av setets totems flyttar fram läget. reset=combat/N: börjar om efter strid eller N sekunder.
+---------------------------------------------------------------------------------------------------
+local seq = {}   -- [index] = { key, pos, at, pressed }
+local PRESS_WINDOW = 1
+
+local function seqFor(index, totems)
+	local key = table.concat(totems, ",")
+	local q = seq[index]
+	if not q or q.key ~= key then
+		q = { key = key, pos = 1, at = -100 }
+		seq[index] = q
+	end
+	if q.pos > 1 and GetTime() - q.at > (ns.char.seqReset or 10) then q.pos = 1 end
+	if q.pos > #totems then q.pos = 1 end
+	return q
+end
+
+-- Totemet vänsterklick på situationen lägger härnäst (nil om du inte kan något i setet)
+function BA:NextTotem(index)
+	local totems = self:KnownTotems(self:Situation(index))
+	if #totems == 0 then return nil end
+	return totems[seqFor(index, totems).pos]
+end
+
+function BA:SeqPressed(index)
+	local totems = self:KnownTotems(self:Situation(index))
+	if #totems == 0 then return end
+	seqFor(index, totems).pressed = GetTime()
+end
+
+function BA:OnCast(name)
+	local now = GetTime()
+	local changed = false
+	for index, q in pairs(seq) do
+		if q.pressed and now - q.pressed <= PRESS_WINDOW then
+			local totems = self:KnownTotems(self:Situation(index))
+			-- Har setet ändrats sedan trycket börjar sekvensen om (seqFor byter tabell)
+			for i, t in ipairs(seqFor(index, totems) == q and totems or {}) do
+				if t == name then
+					-- Fram till totemet efter det som castades (synkar också om läget var fel)
+					q.pos = i % #totems + 1
+					q.at, q.pressed = now, nil
+					changed = true
+					break
+				end
+			end
+		end
+	end
+	if changed then self:UpdateMana() end
+end
+
+function BA:ResetSequences()
+	for _, q in pairs(seq) do q.pos, q.pressed = 1, nil end
+end
+
+---------------------------------------------------------------------------------------------------
+-- Mana: tona knappar blå när du inte har råd med totemet (vanliga texturer, fungerar i strid)
+---------------------------------------------------------------------------------------------------
+-- true = råd, false = för lite mana, nil = okänt (secret eller API saknas)
+function BA:CanAfford(spell)
+	if not spell or spell == "" or not C_Spell then return nil end
+	local arg = ns.Spellbook:ID(spell) or ns.L(spell)
+	if C_Spell.IsSpellUsable then
+		local ok, _, noMana = ns.getAll(C_Spell.IsSpellUsable, arg)
+		if ok and noMana == true then return false end
+		if ok and noMana == false then return true end
+	end
+	if C_Spell.GetSpellPowerCost then
+		local costs = ns.get(C_Spell.GetSpellPowerCost, arg)
+		local mana = ns.get(UnitPower, "player", 0)
+		if type(costs) ~= "table" or type(mana) ~= "number" then return nil end
+		local cost = 0
+		for i = 1, 8 do
+			local e = ns.field(costs, i)
+			if e == nil then break end
+			local kind, name = ns.field(e, "type"), ns.field(e, "name")
+			if kind == 0 or name == "MANA" then
+				local c = ns.field(e, "cost")
+				if type(c) ~= "number" then return nil end
+				cost = c
+			elseif kind == nil and name == nil then
+				return nil
+			end
+		end
+		return mana >= cost
+	end
+	return nil
+end
+
+local function tint(b, spell, on)
+	local dim = on and spell ~= nil and BA:CanAfford(spell) == false or false
+	if b.noMana ~= dim then
+		b.noMana = dim
+		if dim then b.icon:SetVertexColor(0.4, 0.4, 1) else b.icon:SetVertexColor(1, 1, 1) end
+	end
+end
+
+function BA:UpdateMana()
+	local on = ns.char.totemAlerts == nil or ns.char.totemAlerts.manaDim ~= false
+	local list = self:List()
+	for i, b in ipairs(sitButtons) do
+		local s = list[i]
+		tint(b, (s and not s.hidden) and self:NextTotem(i) or nil, on)
+	end
+	for _, b in ipairs(cntButtons) do tint(b, b.spell, on) end
+end
+
+-- UNIT_POWER_FREQUENT kommer många gånger i sekunden: högst var 0,25 s (sista värdet kommer alltid med)
+local manaPending, manaAt = false, -100
+local MANA_GAP = 0.25
+function BA:QueueMana()
+	if manaPending then return end
+	local wait = MANA_GAP - (GetTime() - manaAt)
+	if wait <= 0 then
+		manaAt = GetTime()
+		self:UpdateMana()
+		return
+	end
+	manaPending = true
+	C_Timer.After(wait, function()
+		manaPending = false
+		manaAt = GetTime()
+		local ok, err = pcall(BA.UpdateMana, BA)
+		if not ok then ns.report(err) end
+	end)
+end
+
+local powerFrame = CreateFrame("Frame")
+powerFrame:SetScript("OnEvent", function(_, _, unit)
+	if ns.isSecret(unit) or unit ~= "player" then return end
+	local ok, err = pcall(BA.QueueMana, BA)
+	if not ok then ns.report(err) end
+end)
 
 ---------------------------------------------------------------------------------------------------
 -- Markeringar från Advisor (vanliga texturer, fungerar i strid)
@@ -435,6 +580,11 @@ function BA:OnShamanLogin()
 	ns.on("UPDATE_BINDINGS", function() BA:UpdateKeys() end)
 	ns.on("PLAYER_ENTERING_WORLD", autoMode)
 	ns.on("ZONE_CHANGED_NEW_AREA", autoMode)
+	pcall(powerFrame.RegisterUnitEvent, powerFrame, "UNIT_POWER_FREQUENT", "player")
+	ns.on("SPELL_UPDATE_USABLE", function() BA:QueueMana() end)
+	ns.listen("PLAYER_CAST", function(name) BA:OnCast(name) end)
+	ns.listen("TOTEMS_CHANGED", function() BA:QueueMana() end)
+	ns.listen("COMBAT_END", function() BA:ResetSequences(); BA:UpdateMana() end)
 	ns.listen("BARS_LAYOUT", function()
 		ns.afterCombat("bars-layout", function()
 			ns.placeFrame(sitBar, ns.char.bars.situations)

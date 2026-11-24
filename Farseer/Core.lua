@@ -443,6 +443,9 @@ ns.DEFAULTS = {
 			imbueMinutes = 5,
 			preferWaterShield = false,
 			imbueSpell = "auto",
+			offhand = true,           -- påminn om imbue på off-hand (dual wield)
+			offhandSpell = "auto",    -- "auto" = Flametongue Weapon om du har den, annars samma som main hand
+			oil = true,               -- vapenolja/slipsten (checklistan + påminnelse före pull)
 		},
 		hud = {
 			cooldowns = true,     -- cooldown-ikoner
@@ -461,6 +464,11 @@ ns.DEFAULTS = {
 			range = true,         -- markera totems vars buff inte når dig (utom räckhåll)
 			rangeAlert = true,    -- ...och varna en gång per totem
 			callButton = true,    -- Totemic Call-knapp på totembaren
+			expire = true,        -- varna innan totems går ut
+			expireSec = 20,       -- ...så här många sekunder innan
+			expireLongOnly = true,-- bara totems som varar minst en minut (inte Searing/Magma)
+			party = true,         -- vilka i gruppen saknar dina totembuffar (utanför strid)
+			manaDim = true,       -- tona ned totemknappar du inte har mana till
 		},
 		procs = {
 			maelstrom = true,     -- Maelstrom Weapon-stackar
@@ -477,6 +485,15 @@ ns.DEFAULTS = {
 			enemyCastAlertPvp = true,
 			dr = true,            -- diminishing returns på target
 			assisted = true,      -- Blizzards förslag på nästa spell (om klienten har det)
+			clearcast = true,     -- Elemental Focus (Clearcasting)
+			stormstrike = true,   -- Stormstrike-buffen (nästa shock/bolt +20 %)
+			flurry = false,       -- Flurry
+			cdTimers = true,      -- nedräkning för Mana Tide Totem och Rage of the Farseer
+			announce = false,     -- ...och meddelande i grupp-/raidchatten
+			bossmods = true,      -- DBM/BigWigs: lys upp Tremor/Cleansing innan bossens fear/gift
+			bossLead = 4,         -- ...så här många sekunder innan
+			pullCheck = true,     -- pull-timer: påminnelse om totems, imbue och sköld
+			breath = true,        -- under vatten: Water Breathing / andning tar slut
 		},
 		spec = {
 			auto = true,          -- känn av spec (talanger) och byt BiS-spec + profil
