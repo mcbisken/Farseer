@@ -498,6 +498,7 @@ ns.DEFAULTS = {
 		bisSpec = "elemental",
 		bisPhase = "prebis",
 		learnedDur = {},          -- totemtider inlärda utanför strid
+		bindLayer = { mod = "", keep = false },  -- keybind-mallar: lägg på Shift/Ctrl/Alt, behåll egna bindningar
 	},
 }
 

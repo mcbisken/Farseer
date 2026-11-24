@@ -68,6 +68,29 @@ ns.BINDING_PRESETS = {
 		},
 	},
 	{
+		id = "totems", name = "Totems & counters",
+		desc = "Element totems on 1–4, Call on 5, Totemic Call on 6, Grounding/Tremor/Earthbind on Q/E/R, Fire Nova on F. "
+			.. "Made for a Shift or Ctrl layer on top of your own keybinds.",
+		layer = "SHIFT",
+		binds = {
+			{ "1", macro = "tot_earth" }, { "2", macro = "tot_fire" }, { "3", macro = "tot_water" },
+			{ "4", macro = "tot_air" }, { "5", macro = "tot_calls" }, { "6", macro = "tot_tcall" },
+			{ "Q", macro = "pvp_ground" }, { "E", macro = "pvp_tremor" }, { "R", macro = "pvp_ebind" },
+			{ "F", macro = "tot_nova" },
+			sit(1, "T"), sit(2, "G"), sit(3, "Y"), sit(4, "H"),
+		},
+	},
+	{
+		id = "healmouse", name = "Healer mouse buttons",
+		desc = "Mouseover heals on the side buttons: 4 = Lesser Healing Wave, 5 = Chain Heal, Shift+4 = Riptide, "
+			.. "Shift+5 = Healing Wave, Ctrl+4 = Cure, Ctrl+5 = Nature's Swiftness heal.",
+		binds = {
+			{ "BUTTON4", macro = "res_lhw" }, { "BUTTON5", macro = "res_ch" },
+			{ "SHIFT-BUTTON4", macro = "res_rt" }, { "SHIFT-BUTTON5", macro = "res_hw" },
+			{ "CTRL-BUTTON4", macro = "util_cure" }, { "CTRL-BUTTON5", macro = "res_ns" },
+		},
+	},
+	{
 		id = "situations", name = "Situation buttons only",
 		desc = "Touches nothing else: situation 1–8 on Shift+F1–F8 (drop next totem) and Ctrl+F1–F8 (whole set).",
 		binds = (function()

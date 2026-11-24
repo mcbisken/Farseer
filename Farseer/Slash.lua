@@ -8,7 +8,7 @@ local HELP = {
 	"|cffffd100/farseer pve|r / |cffffd100pvp|r — switch situation mode",
 	"|cffffd100/farseer test|r — test a warning",
 	"|cffffd100/farseer macros <category>|r — create all macros in a category (" .. table.concat(ns.MACRO_CATEGORIES or {}, ", ") .. ")",
-	"|cffffd100/farseer bind <template>|r — apply a keybind template (elemental, enhancement, restoration, pvp, situations, mouse)",
+	"|cffffd100/farseer bind <template> [shift|ctrl|alt] [keep]|r — apply a keybind template (elemental, enhancement, restoration, pvp, totems, healmouse, situations, mouse). shift = put it on Shift+key, keep = only use free keys",
 	"|cffffd100/farseer restore|r — restore keys Farseer has changed",
 	"|cffffd100/farseer bis|r — open the BiS list",
 	"|cffffd100/farseer check|r — pre-raid checklist (shield, imbue, food, flask, Ankh ...)",
@@ -45,15 +45,28 @@ function ns.Slash(msg)
 		end
 		ns.print("categories: %s", table.concat(ns.MACRO_CATEGORIES, ", "))
 	elseif cmd == "bind" then
-		local p = ns.BindingEngine:Preset(rest:lower())
+		-- /farseer bind <mall> [shift|ctrl|alt] [keep]
+		local words = {}
+		for w in rest:lower():gmatch("%S+") do table.insert(words, w) end
+		local p = ns.BindingEngine:Preset(words[1] or "")
+		local opts
+		if #words > 1 then
+			opts = { mod = "", keep = false }
+			for i = 2, #words do
+				local w = words[i]
+				if w == "shift" or w == "ctrl" or w == "alt" then opts.mod = w:upper()
+				elseif w == "keep" then opts.keep = true end
+			end
+		end
 		if not p then
 			local ids = {}
 			for _, x in ipairs(ns.BINDING_PRESETS) do table.insert(ids, x.id) end
 			ns.print("templates: %s", table.concat(ids, ", "))
 			return
 		end
-		local n, errors = ns.BindingEngine:Apply(p.id)
-		ns.print("%s: %d keybinds set.%s", p.name, n, #errors > 0 and (" Errors: " .. table.concat(errors, "; ")) or "")
+		local n, errors, kept = ns.BindingEngine:Apply(p.id, opts)
+		ns.print("%s: %d keybinds set%s.%s", p.name, n, (kept or 0) > 0 and (", " .. kept .. " kept") or "",
+			#errors > 0 and (" Errors: " .. table.concat(errors, "; ")) or "")
 	elseif cmd == "restore" then
 		local n = ns.BindingEngine:Restore()
 		ns.print("%d keys restored.", n)

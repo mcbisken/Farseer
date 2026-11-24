@@ -620,3 +620,52 @@ test("PvP-varning bara när fienden är engagerad, rutnät", function()
 	check(ns.Grid:Size() == 64, "rutnätets storlek begränsas")
 	ns.db.grid.size = 16
 end)
+
+---------------------------------------------------------------------------------------------------
+test("keybinds: Shift-lager och behåll mina", function()
+	local BE = ns.BindingEngine
+	check(BE:AddMod("1", "SHIFT") == "SHIFT-1", "1 -> SHIFT-1")
+	check(BE:AddMod("SHIFT-T", "SHIFT") == "CTRL-SHIFT-T", "SHIFT-T -> CTRL-SHIFT-T")
+	check(BE:AddMod("CTRL-BUTTON4", "ALT") == "ALT-CTRL-BUTTON4", "ordning ALT-CTRL")
+	check(BE:AddMod("ALT-CTRL-SHIFT-X", "SHIFT") == nil, "inga lediga modifierare")
+	check(BE:AddMod("Q", "") == "Q", "inget lager")
+	-- Spelarens egna bindningar
+	ns.char.bindBackup = {}
+	MOCK.bindings = { ["1"] = "ACTIONBUTTON1", ["SHIFT-2"] = "ACTIONBUTTON8", ["SHIFT-3"] = "MACRO FS Flame" }
+	local plan = BE:Plan("elemental", { mod = "SHIFT", keep = true })
+	local by = {}
+	for _, e in ipairs(plan) do by[e.key] = e end
+	check(by["SHIFT-1"] and not by["SHIFT-1"].skip, "Shift+1 är ledig")
+	check(by["SHIFT-2"] and by["SHIFT-2"].skip == "kept", "Shift+2 behålls")
+	check(by["SHIFT-3"] and not by["SHIFT-3"].skip, "Farseers gamla bindning får uppdateras")
+	check(by["CTRL-SHIFT-T"] ~= nil, "mallens Shift-tangenter flyttas till Ctrl+Shift")
+	local n, errors, kept = BE:Apply("elemental", { mod = "SHIFT", keep = true })
+	check(n > 0 and kept == 1 and #errors == 0, "applicerad: " .. n .. " bundna, " .. tostring(kept) .. " behållna")
+	check(MOCK.bindings["1"] == "ACTIONBUTTON1", "vanliga 1 orörd")
+	check(MOCK.bindings["SHIFT-2"] == "ACTIONBUTTON8", "egen Shift+2 orörd")
+	check(MOCK.bindings["SHIFT-1"] and MOCK.bindings["SHIFT-1"]:find("^MACRO FS"), "Shift+1 = Farseer-makro")
+	check(ns.char.bindBackup["SHIFT-1"] == "", "backup av Shift+1 (var tom)")
+	-- Utan "behåll" skrivs det över
+	BE:Apply("elemental", { mod = "SHIFT", keep = false })
+	check(MOCK.bindings["SHIFT-2"]:find("^MACRO FS"), "Shift+2 överskriven utan behåll")
+	BE:Restore()
+	check(MOCK.bindings["SHIFT-2"] == "ACTIONBUTTON8" and (MOCK.bindings["SHIFT-1"] == nil or MOCK.bindings["SHIFT-1"] == ""), "återställt")
+	-- [mod:shift]-varning
+	local warned = false
+	for _, e in ipairs(BE:Plan("pvp", { mod = "SHIFT", keep = false })) do if e.modWarn then warned = true end end
+	check(warned, "varnar för [mod:shift]-makron på Shift")
+	-- Mallen föreslår sitt lager, och slash-kommandot tar lager + keep
+	SlashCmdList.FARSEER("bind situations shift keep")
+	check(MOCK.bindings["CTRL-SHIFT-F1"] ~= nil, "slash: bind situations shift keep")
+	check(MOCK.bindings["ALT-CTRL-F1"] ~= nil, "krock löst med nästa modifierare")
+	local dup = false
+	local seen = {}
+	for _, e in ipairs(BE:Plan("situations", { mod = "SHIFT" })) do
+		if seen[e.key] then dup = true end
+		seen[e.key] = true
+	end
+	check(not dup, "inga dubbla tangenter i planen")
+	BE:Restore()
+	ns.Options:Open("bindings")
+	MOCK.bindings = {}
+end)
