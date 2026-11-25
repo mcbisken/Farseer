@@ -72,6 +72,7 @@ local function makeBar(parent, r, g, b)
 	bar.bg:SetColorTexture(0, 0, 0, 0.55)
 	bar.text = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 	bar.text:SetPoint("CENTER")
+	ns.Theme.SkinBar(bar)
 	bar:Hide()
 	return bar
 end
@@ -105,6 +106,7 @@ local function makeIcon(i)
 		GameTooltip:Show()
 	end)
 	f:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	ns.Theme.SkinIcon(f)
 	icons[i] = f
 	return f
 end
@@ -115,7 +117,7 @@ function HU:Build()
 	frame:SetSize(200, 40)
 	ns.placeFrame(frame, c)
 	ns.makeMovable(frame, c, "Farseer: combat HUD")
-	rangeText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	rangeText = frame:CreateFontString(nil, "OVERLAY", ns.Theme.Font("FarseerFontLabel"))
 	rangeText:SetPoint("BOTTOM", frame, "TOP", 0, 2)
 	fsBar = makeBar(frame, 0.95, 0.4, 0.1)
 	swingBar = makeBar(frame, 0.85, 0.85, 0.85)

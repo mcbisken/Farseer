@@ -101,11 +101,8 @@ function KM:Build()
 	panel:SetSize(460, 64)
 	panel:SetPoint("TOP", UIParent, "TOP", 0, -90)
 	panel:SetFrameStrata("FULLSCREEN_DIALOG")
-	if panel.SetBackdrop then
-		panel:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-		panel:SetBackdropColor(0.04, 0.06, 0.09, 0.94)
-		panel:SetBackdropBorderColor(0.2, 0.55, 1, 1)
-	end
+	ns.Theme.Skin(panel, ns.Theme.C.bg, ns.Theme.C.accentDim, 0.96)
+	ns.Theme.Shadow(panel, 6)
 	panel.title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 	panel.title:SetPoint("TOP", 0, -10)
 	panel.title:SetText("|cff40c0ffFarseer|r key binding mode")

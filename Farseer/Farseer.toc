@@ -2,7 +2,7 @@
 ## Title: Farseer
 ## Notes: All-in-one shaman addon for WoW: Forever. Macros, keybind templates, situation totems (PvE/PvP), totem warnings, combat HUD, procs (Maelstrom, Windfury), alerts, click-cast, raid totems, timers, reminders, profiles, trainer/checklist, T0.5 and BiS. /farseer
 ## Author: mcbisken
-## Version: 1.9.0
+## Version: 2.0.0
 ## SavedVariables: FarseerDB
 ## SavedVariablesPerCharacter: FarseerCharDB
 ## IconTexture: Interface\Icons\Spell_Nature_BloodLust
@@ -11,6 +11,7 @@
 ## AddonCompartmentFuncOnLeave: Farseer_OnCompartmentLeave
 
 Core.lua
+UI\Theme.lua
 Data\Spells.lua
 Data\Macros.lua
 Data\Bindings.lua

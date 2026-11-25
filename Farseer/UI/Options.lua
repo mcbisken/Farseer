@@ -1,17 +1,66 @@
--- Huvudfönstret (/farseer eller minimap-ikonen): flikar som byggs första gången de visas.
+-- Huvudfönstret (/farseer eller minimap-ikonen): titelrad, sidomeny med grupperade flikar (ikon + namn)
+-- och en yta där flikarna byggs första gången de visas.
 
 local _, ns = ...
 local UI = ns.UI
+local T = ns.Theme
+local C = T.C
 local OP = ns.module("Options")
 
-local W, H = 900, 620
+local SIDE = 188            -- sidomenyns bredd
+local TOP = 52              -- titelradens höjd
+local BODY_W, BODY_H = 876, 548
+local W, H = SIDE + BODY_W + 28, TOP + BODY_H + 28
 local main
 local tabs, tabButtons = {}, {}
 local current
 
+-- Grupper och ikoner i sidomenyn (flikar som inte står här hamnar sist under "More")
+local GROUPS = {
+	{ "General", { "overview", "settings", "profiles" } },
+	{ "Totems", { "situations", "advisor", "raid" } },
+	{ "Combat", { "combat", "procs", "alerts", "healing" } },
+	{ "Setup", { "macros", "bindings" } },
+	{ "Progress", { "leveling", "t05", "bis" } },
+}
+local ICONS = {
+	overview = "Interface\\Icons\\INV_Misc_Book_09",
+	settings = "Interface\\Icons\\INV_Misc_Gear_01",
+	profiles = "Interface\\Icons\\INV_Misc_Note_02",
+	situations = "Interface\\Icons\\Spell_Nature_StoneSkinTotem",
+	advisor = "Interface\\Icons\\Spell_Nature_TremorTotem",
+	raid = "Interface\\Icons\\Spell_Nature_GroundingTotem",
+	combat = "Interface\\Icons\\Spell_Nature_EarthShock",
+	procs = "Interface\\Icons\\Spell_Nature_LightningShield",
+	alerts = "Interface\\Icons\\Ability_Warrior_BattleShout",
+	healing = "Interface\\Icons\\Spell_Nature_HealingWaveGreater",
+	macros = "Interface\\Icons\\INV_Misc_Note_01",
+	bindings = "Interface\\Icons\\INV_Misc_Key_03",
+	leveling = "Interface\\Icons\\INV_Misc_Map_01",
+	t05 = "Interface\\Icons\\Spell_Nature_Lightning",
+	bis = "Interface\\Icons\\INV_Misc_Bag_10",
+}
+UI.TAB_ICONS = ICONS
+
 -- Flikmoduler registrerar sig här: build(panel) en gång, refresh(panel) varje gång fliken visas
 function UI.AddTab(id, title, build, refresh)
 	table.insert(tabs, { id = id, title = title, build = build, refresh = refresh })
+end
+
+local function paintTab(b, sel, hover)
+	b.sel:SetShown(sel)
+	b.bar:SetShown(sel)
+	b.hover:SetShown(hover and not sel)
+	if sel then
+		b.text:SetTextColor(1, 1, 1)
+		b.icon:SetDesaturated(false)
+		b.icon:SetAlpha(1)
+	else
+		local c = hover and C.text or C.dim
+		b.text:SetTextColor(c[1], c[2], c[3])
+		b.icon:SetDesaturated(not hover)
+		b.icon:SetAlpha(hover and 1 or 0.7)
+	end
 end
 
 local function selectTab(id)
@@ -25,11 +74,14 @@ local function selectTab(id)
 		end
 		if t.panel then t.panel:SetShown(sel) end
 		local b = tabButtons[i]
-		if sel then b:LockHighlight() else b:UnlockHighlight() end
-		b.sel:SetShown(sel)
-		if sel and t.refresh then
-			local ok, err = pcall(t.refresh, t.panel)
-			if not ok then ns.report(err) end
+		b.selected = sel
+		paintTab(b, sel, false)
+		if sel then
+			main.crumb:SetText(t.title)
+			if sel and t.refresh then
+				local ok, err = pcall(t.refresh, t.panel)
+				if not ok then ns.report(err) end
+			end
 		end
 	end
 	current = id
@@ -44,6 +96,63 @@ function UI.RefreshCurrent()
 	selectTab(current)
 end
 
+-- Flikarna i sidomenyns ordning, med grupprubriker
+local function ordered()
+	local byId, used, out = {}, {}, {}
+	for i, t in ipairs(tabs) do byId[t.id] = i end
+	for _, g in ipairs(GROUPS) do
+		local first = true
+		for _, id in ipairs(g[2]) do
+			if byId[id] then
+				if first then table.insert(out, { group = g[1] }); first = false end
+				table.insert(out, { index = byId[id] })
+				used[id] = true
+			end
+		end
+	end
+	local rest = false
+	for i, t in ipairs(tabs) do
+		if not used[t.id] then
+			if not rest then table.insert(out, { group = "More" }); rest = true end
+			table.insert(out, { index = i })
+		end
+	end
+	return out
+end
+
+local function makeTab(parent, i, t)
+	local b = CreateFrame("Button", nil, parent)
+	b:SetSize(SIDE - 16, 26)
+	b.sel = b:CreateTexture(nil, "BACKGROUND")
+	b.sel:SetAllPoints()
+	b.sel:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 0.14)
+	b.hover = b:CreateTexture(nil, "BACKGROUND")
+	b.hover:SetAllPoints()
+	b.hover:SetColorTexture(1, 1, 1, 0.04)
+	b.bar = b:CreateTexture(nil, "ARTWORK")
+	b.bar:SetPoint("TOPLEFT")
+	b.bar:SetPoint("BOTTOMLEFT")
+	b.bar:SetWidth(3)
+	b.bar:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 1)
+	b.icon = b:CreateTexture(nil, "ARTWORK")
+	b.icon:SetSize(16, 16)
+	b.icon:SetPoint("LEFT", 12, 0)
+	b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	b.icon:SetTexture(ICONS[t.id] or "Interface\\Icons\\INV_Misc_QuestionMark")
+	b.text = b:CreateFontString(nil, "OVERLAY", T.Font("FarseerFontTab"))
+	b.text:SetPoint("LEFT", b.icon, "RIGHT", 9, 0)
+	b.text:SetText(t.title)
+	b:SetScript("OnEnter", function(self) paintTab(self, self.selected, true) end)
+	b:SetScript("OnLeave", function(self) paintTab(self, self.selected, false) end)
+	b:SetScript("OnClick", function()
+		PlaySound(SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_TAB or 841)
+		selectTab(t.id)
+	end)
+	paintTab(b, false, false)
+	tabButtons[i] = b
+	return b
+end
+
 local function build()
 	main = CreateFrame("Frame", "FarseerOptions", UIParent, "BackdropTemplate")
 	main:SetSize(W, H)
@@ -53,51 +162,124 @@ local function build()
 	main:SetClampedToScreen(true)
 	main:SetMovable(true)
 	main:EnableMouse(true)
-	main:RegisterForDrag("LeftButton")
-	main:SetScript("OnDragStart", main.StartMoving)
-	main:SetScript("OnDragStop", main.StopMovingOrSizing)
-	UI.Backdrop(main, 0.96, { 0.25, 0.4, 0.65 })
+	T.Skin(main, C.bg, C.border, 0.97)
+	T.Shadow(main, 8)
 	table.insert(UISpecialFrames, "FarseerOptions")
 
-	local icon = main:CreateTexture(nil, "ARTWORK")
-	icon:SetSize(34, 34)
-	icon:SetPoint("TOPLEFT", 12, -10)
-	icon:SetTexture("Interface\\Icons\\Spell_Nature_BloodLust")
-	local title = UI.Label(main, "Farseer", "GameFontNormalHuge", { 0.2, 0.6, 1 })
-	title:SetPoint("LEFT", icon, "RIGHT", 10, 4)
-	local sub = UI.Label(main, "Shaman addon for WoW: Forever  ·  v" .. ns.VERSION, "GameFontDisableSmall")
-	sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -2)
-
-	local close = UI.Button(main, "X", 26, 24, function() main:Hide() end)
-	close:SetPoint("TOPRIGHT", -8, -8)
-
-	-- Flikrad (bryts till två rader om flikarna inte får plats)
-	local x, y = 12, -54
-	for i, t in ipairs(tabs) do
-		local b = UI.Button(main, t.title, 0, 26, function() selectTab(t.id) end)
-		b:SetWidth(math.max(74, (b:GetFontString() and b:GetFontString():GetStringWidth() or 60) + 24))
-		if x + b:GetWidth() > W - 12 then
-			x, y = 12, y - 28
-		end
-		b:SetPoint("TOPLEFT", main, "TOPLEFT", x, y)
-		x = x + b:GetWidth() + 4
-		b.sel = b:CreateTexture(nil, "OVERLAY")
-		b.sel:SetColorTexture(0.2, 0.6, 1, 1)
-		b.sel:SetHeight(2)
-		b.sel:SetPoint("BOTTOMLEFT", 4, 1)
-		b.sel:SetPoint("BOTTOMRIGHT", -4, 1)
-		b.sel:Hide()
-		tabButtons[i] = b
+	-- Titelrad (dra i den för att flytta fönstret)
+	local bar = CreateFrame("Frame", nil, main)
+	bar:SetPoint("TOPLEFT", 1, -1)
+	bar:SetPoint("TOPRIGHT", -1, -1)
+	bar:SetHeight(TOP)
+	bar:EnableMouse(true)
+	bar:RegisterForDrag("LeftButton")
+	bar:SetScript("OnDragStart", function() main:StartMoving() end)
+	bar:SetScript("OnDragStop", function() main:StopMovingOrSizing() end)
+	local barBg = bar:CreateTexture(nil, "BACKGROUND")
+	barBg:SetAllPoints()
+	barBg:SetColorTexture(1, 1, 1, 1)
+	if not T.Gradient(barBg, "VERTICAL", { C.side[1], C.side[2], C.side[3], 1 }, { 0.07, 0.09, 0.13, 1 }) then
+		barBg:SetColorTexture(C.side[1], C.side[2], C.side[3], 1)
+	end
+	local glowLine = bar:CreateTexture(nil, "ARTWORK")
+	glowLine:SetPoint("BOTTOMLEFT")
+	glowLine:SetPoint("BOTTOMRIGHT")
+	glowLine:SetHeight(1)
+	glowLine:SetColorTexture(1, 1, 1, 1)
+	if not T.Gradient(glowLine, "HORIZONTAL", { C.accent[1], C.accent[2], C.accent[3], 0.9 }, { C.accent[1], C.accent[2], C.accent[3], 0.05 }) then
+		glowLine:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 0.5)
 	end
 
-	-- Fler rader: fönstret blir högre, så flikarnas yta är lika stor
-	local extra = -54 - y
-	main:SetHeight(H + extra)
-	main.body = CreateFrame("Frame", nil, main)
-	main.body:SetPoint("TOPLEFT", 12, -88 - extra)
-	main.body:SetPoint("BOTTOMRIGHT", -12, 12)
+	local iconFrame = CreateFrame("Frame", nil, bar)
+	iconFrame:SetSize(32, 32)
+	iconFrame:SetPoint("LEFT", 14, 0)
+	local icon = iconFrame:CreateTexture(nil, "ARTWORK")
+	icon:SetPoint("TOPLEFT", 1, -1)
+	icon:SetPoint("BOTTOMRIGHT", -1, 1)
+	icon:SetTexture("Interface\\Icons\\Spell_Nature_BloodLust")
+	icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	T.Border(iconFrame, { C.accent[1], C.accent[2], C.accent[3], 0.9 }, "OVERLAY", 0)
+	local title = bar:CreateFontString(nil, "OVERLAY", T.Font("FarseerFontTitle"))
+	title:SetPoint("TOPLEFT", iconFrame, "TOPRIGHT", 12, -1)
+	title:SetText("FARSEER")
+	pcall(title.SetSpacing, title, 0)
+	local sub = bar:CreateFontString(nil, "OVERLAY", T.Font("FarseerFontDim"))
+	sub:SetPoint("BOTTOMLEFT", iconFrame, "BOTTOMRIGHT", 12, 0)
+	sub:SetText("Shaman toolkit for WoW: Forever")
+	-- Versionen i en liten bricka
+	local pill = CreateFrame("Frame", nil, bar, "BackdropTemplate")
+	T.Skin(pill, { C.accent[1] * 0.25, C.accent[2] * 0.25, C.accent[3] * 0.3 }, C.accentDim, 1)
+	local ver = pill:CreateFontString(nil, "OVERLAY", T.Font("FarseerFontAccent"))
+	ver:SetPoint("CENTER", 0, 0)
+	ver:SetText("v" .. tostring(ns.VERSION))
+	local vw = tonumber(ver:GetStringWidth()) or 40
+	pill:SetSize(math.max(40, vw + 14), 18)
+	pill:SetPoint("LEFT", title, "RIGHT", 10, 0)
+	-- Var du är: flikens namn till höger
+	main.crumb = bar:CreateFontString(nil, "OVERLAY", T.Font("FarseerFontHeader"))
+	main.crumb:SetPoint("RIGHT", bar, "RIGHT", -52, 0)
+	main.crumb:SetTextColor(C.dim[1], C.dim[2], C.dim[3])
 
-	main:SetScript("OnHide", function() UI.HideMenu() end)
+	local close = UI.IconButton(bar, 28, "×", function() main:Hide() end, C.bad)
+	close:SetPoint("RIGHT", -12, 0)
+
+	-- Sidomeny
+	local side = CreateFrame("Frame", nil, main)
+	side:SetPoint("TOPLEFT", 1, -(TOP + 1))
+	side:SetPoint("BOTTOMLEFT", 1, 1)
+	side:SetWidth(SIDE)
+	local sideBg = side:CreateTexture(nil, "BACKGROUND")
+	sideBg:SetAllPoints()
+	sideBg:SetColorTexture(C.side[1], C.side[2], C.side[3], 1)
+	local sideEdge = side:CreateTexture(nil, "BORDER")
+	sideEdge:SetPoint("TOPRIGHT")
+	sideEdge:SetPoint("BOTTOMRIGHT")
+	sideEdge:SetWidth(1)
+	sideEdge:SetColorTexture(C.border[1], C.border[2], C.border[3], 1)
+
+	local y = -10
+	for _, row in ipairs(ordered()) do
+		if row.group then
+			local g = side:CreateFontString(nil, "OVERLAY", T.Font("FarseerFontGroup"))
+			g:SetPoint("TOPLEFT", side, "TOPLEFT", 20, y - 6)
+			g:SetText(string.upper(row.group))
+			y = y - 22
+		else
+			local b = makeTab(side, row.index, tabs[row.index])
+			b:SetPoint("TOPLEFT", side, "TOPLEFT", 8, y)
+			y = y - 27
+		end
+	end
+
+	-- Fot i sidomenyn
+	local foot = side:CreateFontString(nil, "OVERLAY", T.Font("FarseerFontGroup"))
+	foot:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", 20, 12)
+	foot:SetJustifyH("LEFT")
+	foot:SetText("/farseer  ·  /farseer kb\n/farseer debug")
+
+	-- Flikarnas yta
+	main.body = CreateFrame("Frame", nil, main)
+	main.body:SetPoint("TOPLEFT", main, "TOPLEFT", SIDE + 14, -(TOP + 14))
+	main.body:SetSize(BODY_W, BODY_H)
+
+	-- Mjuk intoning
+	local ok, fade = pcall(function()
+		local g = main:CreateAnimationGroup()
+		local a = g:CreateAnimation("Alpha")
+		a:SetFromAlpha(0)
+		a:SetToAlpha(1)
+		a:SetDuration(0.14)
+		return g
+	end)
+	main.fadeIn = ok and fade or nil
+	main:SetScript("OnShow", function()
+		if main.fadeIn then main.fadeIn:Play() end
+		PlaySound(SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_OPEN or 839)
+	end)
+	main:SetScript("OnHide", function()
+		UI.HideMenu()
+		PlaySound(SOUNDKIT and SOUNDKIT.IG_CHARACTER_INFO_CLOSE or 840)
+	end)
 	main:Hide()
 end
 
@@ -116,7 +298,7 @@ function OP:Open(tab)
 	selectTab(tab or current or tabs[1].id)
 end
 
-UI.WIDTH, UI.HEIGHT = W - 24, H - 100
+UI.WIDTH, UI.HEIGHT = BODY_W, BODY_H - 28
 
 ---------------------------------------------------------------------------------------------------
 -- Minimap-ikon (egen, dras runt kartan)

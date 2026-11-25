@@ -208,7 +208,8 @@ local function makeIcon(b, size)
 	b.hl:SetTexture("Interface\\Buttons\\ButtonHilight-Square")
 	b.hl:SetBlendMode("ADD")
 	b.key = b:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmallGray")
-	b.key:SetPoint("TOPRIGHT", -1, -2)
+	b.key:SetPoint("TOPRIGHT", -2, -3)
+	ns.Theme.SkinIcon(b)
 end
 
 local function sitTooltip(self)
