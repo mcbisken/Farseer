@@ -10,6 +10,7 @@ local HELP = {
 	"|cffffd100/farseer macros <category>|r — create all macros in a category (" .. table.concat(ns.MACRO_CATEGORIES or {}, ", ") .. ")",
 	"|cffffd100/farseer bind <template> [shift|ctrl|alt] [keep]|r — apply a keybind template (elemental, enhancement, restoration, pvp, totems, healmouse, situations, mouse). shift = put it on Shift+key, keep = only use free keys",
 	"|cffffd100/farseer restore|r — restore keys Farseer has changed",
+	"|cffffd100/farseer kb|r — key binding mode: hover a Farseer button and press a key",
 	"|cffffd100/farseer bis|r — open the BiS list",
 	"|cffffd100/farseer check|r — pre-raid checklist (shield, imbue, food, flask, Ankh ...)",
 	"|cffffd100/farseer trainer|r — what's waiting at the trainer",
@@ -67,6 +68,8 @@ function ns.Slash(msg)
 		local n, errors, kept = ns.BindingEngine:Apply(p.id, opts)
 		ns.print("%s: %d keybinds set%s.%s", p.name, n, (kept or 0) > 0 and (", " .. kept .. " kept") or "",
 			#errors > 0 and (" Errors: " .. table.concat(errors, "; ")) or "")
+	elseif cmd == "kb" or cmd == "keys" then
+		ns.KeyMode:Toggle()
 	elseif cmd == "restore" then
 		local n = ns.BindingEngine:Restore()
 		ns.print("%d keys restored.", n)

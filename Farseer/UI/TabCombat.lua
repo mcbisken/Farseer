@@ -30,6 +30,13 @@ local function build(p)
 		{ "Swing timer", function() return h.swing end, function(v) h.swing = v; hudChanged() end,
 			"Time until the next main-hand swing (Forever's PLAYER_SWING)." },
 		{ "Swing timer only in combat", function() return h.swingCombatOnly end, function(v) h.swingCombatOnly = v end },
+		{ "Off-hand swing (dual wield)", function() return h.offSwing ~= false end, function(v) h.offSwing = v; hudChanged() end,
+			"A second bar for the off-hand weapon." },
+		{ "Flurry charges on the swing bar", function() return h.flurrySwing ~= false end, function(v) h.flurrySwing = v end,
+			"Shows \"Flurry 3\" while Flurry is up (the game writes the number even when it is hidden in combat)." },
+		{ "Glow when ready (shocks, Stormstrike, Lava Burst)", function() return h.readyGlow ~= false end,
+			function(v) h.readyGlow = v end,
+			"In combat with a hostile target in range: the HUD icon glows when the spell is off cooldown." },
 	}
 	local last = hh
 	for i, r in ipairs(rows) do

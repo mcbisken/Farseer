@@ -154,6 +154,9 @@ local function build(p)
 		end)
 	end)
 	restore:SetPoint("LEFT", apply, "RIGHT", 8, 0)
+	local kb = UI.Button(p, "Key binding mode", 160, 28, function() ns.KeyMode:Toggle() end,
+		"Hover any Farseer button and press a key to bind it (Shift/Ctrl/Alt work). Delete clears it, Escape is done. Also /farseer kb.")
+	kb:SetPoint("LEFT", restore, "RIGHT", 8, 0)
 	local mk = UI.Button(p, "Create macros only", 170, 28, function()
 		local preset = BE:Preset(sel)
 		local n = 0

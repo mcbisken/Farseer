@@ -464,6 +464,9 @@ ns.DEFAULTS = {
 			chainHealHint = true, -- "Chain Heal +25 %" när Riptide är ute
 			swing = true,         -- swing timer
 			swingCombatOnly = true,
+			offSwing = true,      -- off-hand-swing (dual wield) under main hand
+			flurrySwing = true,   -- Flurry-laddningar på swing-baren
+			readyGlow = true,     -- Earth Shock/Stormstrike/Lava Burst glöder när de är redo (i strid, fientligt target)
 		},
 		totemAlerts = {
 			death = true,         -- varna när ett totem dör i förtid (Grounding åt en spell ...)

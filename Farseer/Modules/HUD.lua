@@ -8,8 +8,20 @@ local _, ns = ...
 local HU = ns.module("HUD")
 
 local MAIN_HAND = Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.MainHand or 0
+local OFF_HAND = Enum and Enum.PlayerSwingType and Enum.PlayerSwingType.OffHand or 1
 
-local frame, rangeText, fsBar, swingBar
+-- Glöd när de är redo. cd = grundcooldown (egen klocka); family = delar cooldown (alla shocks)
+local READY = {
+	["Earth Shock"] = { cd = 6, family = "shock" },
+	["Stormstrike"] = { cd = 20 },
+	["Lava Burst"] = { cd = 8 },
+}
+local SHOCKS = { ["Earth Shock"] = true, ["Flame Shock"] = true, ["Frost Shock"] = true }
+HU.READY = READY
+
+local frame, rangeText, fsBar, swingBar, offBar
+local swingOff               -- { start, dur } för off-hand
+local busy = {}              -- [spell] = { at = casttid } medan spellen har cooldown (egen klocka)
 local icons, ripRows = {}, {}
 local riptides = {}          -- [mål] = starttid
 local flame                  -- { start, dur, guid }
@@ -72,6 +84,13 @@ local function makeIcon(i)
 	f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
 	f.cd:SetAllPoints()
 	f.cd:SetDrawEdge(false)
+	-- Cooldown-ramen säger till när den är klar (även när tiden är secret). Efter GCD:n (1,5 s) räknas inte.
+	f.cd:SetScript("OnCooldownDone", function()
+		local e = f.entry
+		local b = e and e.spell and busy[e.spell]
+		if b and GetTime() - b.at > 2 then busy[e.spell] = nil end
+	end)
+	f.ready = ns.addGlow(f, 0.4, 0.8, 1)
 	f:EnableMouse(true)
 	f:SetScript("OnEnter", function(self)
 		if not self.entry then return end
@@ -100,6 +119,11 @@ function HU:Build()
 	rangeText:SetPoint("BOTTOM", frame, "TOP", 0, 2)
 	fsBar = makeBar(frame, 0.95, 0.4, 0.1)
 	swingBar = makeBar(frame, 0.85, 0.85, 0.85)
+	offBar = makeBar(frame, 0.65, 0.65, 0.75)
+	-- Flurry-laddningar till höger på swing-baren (spelet skriver talet även när det är secret)
+	swingBar.flurry = swingBar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+	swingBar.flurry:SetPoint("RIGHT", swingBar, "RIGHT", -3, 0)
+	swingBar.flurry:SetTextColor(1, 0.82, 0.3)
 	for i = 1, 6 do
 		local r = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 		r:SetJustifyH("LEFT")
@@ -142,9 +166,12 @@ function HU:Layout()
 	swingBar:SetSize(width, 8)
 	swingBar:ClearAllPoints()
 	swingBar:SetPoint("TOPLEFT", fsBar, "BOTTOMLEFT", 0, -3)
+	offBar:SetSize(width, 5)
+	offBar:ClearAllPoints()
+	offBar:SetPoint("TOPLEFT", swingBar, "BOTTOMLEFT", 0, -2)
 	for i, r in ipairs(ripRows) do
 		r:ClearAllPoints()
-		r:SetPoint("TOPLEFT", swingBar, "BOTTOMLEFT", 0, -3 - (i - 1) * 12)
+		r:SetPoint("TOPLEFT", offBar, "BOTTOMLEFT", 0, -3 - (i - 1) * 12)
 	end
 	frame:SetSize(width, math.max(size, -y + 24))
 	frame:SetShown(c.show and ns.isShaman)
@@ -199,13 +226,22 @@ function HU:UpdateTimers()
 		end
 	end
 	rangeText:SetText(table.concat(parts, "   "))
+	local glowOn = h.readyGlow ~= false and InCombatLockdown() and hostileTarget()
 	for _, f in ipairs(icons) do
 		local e = f.entry
+		local r
 		if e and e.range and hostile then
-			local r = inRange(e.spell)
+			r = inRange(e.spell)
 			if r == false then f.icon:SetVertexColor(1, 0.3, 0.3) else f.icon:SetVertexColor(1, 1, 1) end
 		elseif e then
 			f.icon:SetVertexColor(1, 1, 1)
+		end
+		if f.ready then
+			if glowOn and e and e.spell and READY[e.spell] and r ~= false and self:Ready(e.spell, now) then
+				f.ready:On()
+			else
+				f.ready:Off()
+			end
 		end
 	end
 	-- Flame Shock på ditt target
@@ -235,8 +271,17 @@ function HU:UpdateTimers()
 			swingBar.text:SetText("")
 			swingBar:SetShown(inCombat)
 		end
+		if h.flurrySwing ~= false then self:ShowFlurry() else swingBar.flurry:SetText("") end
 	else
 		swingBar:Hide()
+	end
+	if h.swing and h.offSwing ~= false and swingOff and (inCombat or not h.swingCombatOnly) then
+		local left = swingOff.start + swingOff.dur - now
+		if left > 0 then offBar:SetValue(1 - left / swingOff.dur) else offBar:SetValue(1) end
+		offBar.text:SetText("")
+		offBar:SetShown(left > 0 or inCombat)
+	else
+		offBar:Hide()
 	end
 	-- Riptide per mål
 	local list = {}
@@ -267,6 +312,7 @@ function HU:OnCast(name, castGUID)
 	local now = GetTime()
 	local who = (castGUID and sent[castGUID]) or lastSentTarget
 	if castGUID then sent[castGUID] = nil end
+	self:OnReadyCast(name)
 	if name == "Flame Shock" then
 		flame = { start = now, dur = ns.FLAME_SHOCK_DUR or 12, guid = ns.get(UnitGUID, "target") }
 	elseif name == "Riptide" then
@@ -277,13 +323,54 @@ function HU:OnCast(name, castGUID)
 end
 
 function HU:OnSwing(dur, kind)
-	if ns.isSecret(kind) or (kind ~= nil and kind ~= MAIN_HAND) then return end
+	if ns.isSecret(kind) then return end
+	local off = kind ~= nil and kind == OFF_HAND and kind ~= MAIN_HAND
+	if kind ~= nil and kind ~= MAIN_HAND and not off then return end
 	if ns.isSecret(dur) or type(dur) ~= "number" or dur <= 0 then
-		-- Secret: läs vapnets hastighet i stället
-		local ok, speed = ns.getAll(UnitAttackSpeed, "player")
-		dur = ok and speed or nil
+		-- Secret: läs vapnets hastighet i stället (main hand, off-hand)
+		local ok, speed, offSpeed = ns.getAll(UnitAttackSpeed, "player")
+		dur = ok and (off and offSpeed or speed) or nil
+		if type(dur) ~= "number" or dur <= 0 then dur = nil end
 	end
-	if dur then swing = { start = GetTime(), dur = dur } else swing = nil end
+	local t = dur and { start = GetTime(), dur = dur } or nil
+	if off then swingOff = t else swing = t end
+end
+
+-- Flurry-laddningar: tal när det går att läsa, annars det råa secret-värdet (spelet ritar det)
+function HU:ShowFlurry()
+	local PC = ns.Procs
+	local fs = swingBar.flurry
+	if not (PC and PC.playerAura) then fs:SetText("") return end
+	local def
+	for _, d in ipairs(PC.PROCS or {}) do if d.key == "flurry" then def = d end end
+	local a = def and PC.playerAura(def.ids, def.name)
+	if a == nil then fs:SetText("") return end
+	local n, raw = PC.applications(a)
+	if n and n > 0 then
+		fs:SetText("Flurry " .. n)
+	elseif raw ~= nil then
+		if not pcall(fs.SetText, fs, raw) then fs:SetText("Flurry") end
+	else
+		fs:SetText("Flurry")
+	end
+end
+
+-- Redo? Egen klocka från din cast; cooldown-ramen kan säga "klar" tidigare (talanger som kortar den)
+function HU:Ready(spell, now)
+	local b = busy[spell]
+	if not b then return true end
+	local def = READY[spell]
+	if def and (now or GetTime()) - b.at >= def.cd then
+		busy[spell] = nil
+		return true
+	end
+	return false
+end
+
+function HU:OnReadyCast(name)
+	if READY[name] then busy[name] = { at = GetTime() } end
+	-- Alla shocks delar cooldown med Earth Shock
+	if SHOCKS[name] then busy["Earth Shock"] = { at = GetTime() } end
 end
 
 local castFrame = CreateFrame("Frame")
@@ -301,7 +388,7 @@ castFrame:SetScript("OnEvent", function(_, event, unit, a2, a3, a4)
 				HU:OnCast(ns.canon(ns.get(C_Spell.GetSpellName, id)), ns.clean(a2))
 			end
 		elseif event == "UNIT_SPELLCAST_START" then
-			if swing and InCombatLockdown() then swing = nil end
+			if swing and InCombatLockdown() then swing, swingOff = nil, nil end
 		end
 	end)
 	if not ok then ns.report(err) end
@@ -320,8 +407,8 @@ function HU:OnShamanLogin()
 		pcall(castFrame.RegisterUnitEvent, castFrame, e, "player")
 	end
 	ns.on("PLAYER_SWING", function(_, dur, kind) HU:OnSwing(dur, kind) end)
-	ns.on("PLAYER_LEAVE_COMBAT", function() swing = nil end)
-	ns.on("PLAYER_DEAD", function() swing, flame = nil, nil; wipe(riptides) end)
+	ns.on("PLAYER_LEAVE_COMBAT", function() swing, swingOff = nil, nil end)
+	ns.on("PLAYER_DEAD", function() swing, swingOff, flame = nil, nil, nil; wipe(riptides); wipe(busy) end)
 	for _, e in ipairs({ "SPELL_UPDATE_COOLDOWN", "BAG_UPDATE_COOLDOWN", "ACTIONBAR_UPDATE_COOLDOWN" }) do
 		ns.on(e, function() HU:UpdateCooldowns() end)
 	end
