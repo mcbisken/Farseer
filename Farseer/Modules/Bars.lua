@@ -164,14 +164,9 @@ function BA:CombatCallMacro(index, s, call)
 	return table.concat(lines, "\n"), set
 end
 
--- Efter striden: ligger setet från högerklicket i strid i Call-slottarna? Då fungerar det i klienten.
-function BA:CheckCombatCall()
-	local c = combatCall
-	combatCall = nil
-	if not c or c.mode ~= self:Mode() then return end
-	local s = self:List(c.mode)[c.index]
-	if not s then return end
-	local have = ns.Totems:CallSetContents(c.set)
+-- Ligger situationens totems i Call-setet? (true/false, nil = inget att jämföra)
+function BA:CallMatches(s, set)
+	local have = ns.Totems:CallSetContents(set)
 	local ok, any = true, false
 	for _, name in ipairs(self:KnownTotems(s)) do
 		local el = ns.Spellbook:TotemElement(name)
@@ -180,8 +175,23 @@ function BA:CheckCombatCall()
 			if have[ns.SLOT[el]] ~= name then ok = false end
 		end
 	end
-	if not any then return end
+	if not any then return nil end
+	return ok
+end
+
+-- Efter striden: ligger setet från högerklicket i strid i Call-slottarna? Då fungerar det i klienten.
+function BA:CheckCombatCall()
+	local c = combatCall
+	combatCall = nil
+	if not c then return end
+	local s = self:List(c.mode)[c.index]
+	if not s then return end
+	local ok = self:CallMatches(s, c.set)
+	if ok == nil then return end
+	if ok and c.already then return end   -- stämde redan före klicket: säger inget
 	if ok then
+		loadedIndex, loadedMode = c.index, c.mode
+		BA:UpdateMarks()
 		BA.combatCallState = "works"
 	elseif BA.combatCallState ~= "works" then
 		BA.combatCallState = "failed"
@@ -209,7 +219,6 @@ local function makeIcon(b, size)
 	b.hl:SetBlendMode("ADD")
 	b.key = b:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmallGray")
 	b.key:SetPoint("TOPRIGHT", -2, -3)
-	ns.Theme.SkinIcon(b)
 end
 
 local function sitTooltip(self)
@@ -259,6 +268,7 @@ function BA:BuildSituationBar()
 		b.label:SetPoint("TOP", b, "BOTTOM", 0, -2)
 		b.label:SetWidth(size + 14)
 		b.label:SetWordWrap(false)
+		ns.Theme.SkinIcon(b)
 		b.dots = {}
 		for d = 1, 4 do
 			local t = b:CreateTexture(nil, "OVERLAY")
@@ -278,10 +288,17 @@ function BA:BuildSituationBar()
 				if not InCombatLockdown() then
 					BA:LoadCall(self.index)
 				elseif self.combatCall then
-					-- Makrot skriver setet i Call-slottarna och castar Call: markera det och kontrollera efter striden
-					loadedIndex, loadedMode = self.index, BA:Mode()
-					combatCall = { index = self.index, mode = loadedMode, set = self.combatCall }
-					BA:UpdateMarks()
+					-- Makrot skriver setet i Call-slottarna och castar Call: kontrollera efter striden.
+					-- Låg setet redan i slottarna säger kontrollen inget (det hade stämt även om klicket inte gjorde något).
+					local mode = self.combatMode or BA:Mode()
+					local s = BA:List(mode)[self.index]
+					combatCall = { index = self.index, mode = mode, set = self.combatCall,
+						already = s and BA:CallMatches(s, self.combatCall) or false }
+					-- "C"-markeringen flyttas bara när vi vet att klienten skriver om setet i strid
+					if BA.combatCallState == "works" then
+						loadedIndex, loadedMode = self.index, mode
+						BA:UpdateMarks()
+					end
 				end
 				-- Utan Call-spell kör högerklick samma /castsequence som vänsterklick
 				if not BA:CallSpell() then BA:SeqPressed(self.index) end
@@ -334,6 +351,7 @@ function BA:ApplySituations()
 			local callMacro, callSet = nil, nil
 			if call and seq then callMacro, callSet = self:CombatCallMacro(i, s, call) end
 			b.combatCall = callMacro and callSet or nil
+			b.combatMode = self:Mode()   -- läget makrot byggdes för (lägesbyte i strid väntar till efter striden)
 			if callMacro then
 				-- Fungerar även i strid: dolda knappar skriver setets totems i Call-slottarna, sedan castas Call
 				b:SetAttribute("*type2", "macro")
@@ -411,6 +429,7 @@ function BA:BuildCounterBar()
 		b.cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
 		b.cd:SetAllPoints()
 		b.cd:SetDrawEdge(false)
+		ns.Theme.SkinIcon(b)
 		b.glow = ns.addGlow(b, 1, 0.85, 0.2)
 		b:SetScript("OnEnter", function(self)
 			if not self.spell then return end
@@ -753,10 +772,12 @@ local hovered = {}         -- [knapp] = true medan musen är över den
 
 function BA:FadeFrames() return fadeFrames end
 
+-- I strid: egen flagga. InCombatLockdown() är fortfarande false medan PLAYER_REGEN_DISABLED hanteras.
+local fadeCombat = false
 function BA:ApplyFade()
 	local f = ns.char.fade or {}
 	local a = 1
-	if f.enabled and not InCombatLockdown() and next(hovered) == nil then a = tonumber(f.alpha) or 0.35 end
+	if f.enabled and not fadeCombat and not InCombatLockdown() and next(hovered) == nil then a = tonumber(f.alpha) or 0.35 end
 	for _, fr in ipairs(fadeFrames) do fr:SetAlpha(a) end
 end
 
@@ -777,8 +798,8 @@ function BA:SetupFade()
 	for _, b in ipairs(cntButtons) do hookHover(b) end
 	for _, el in ipairs(ns.ELEMENTS) do hookHover(_G["FarseerTotem" .. el]) end
 	hookHover(_G.FarseerTotemicCall)
-	ns.listen("COMBAT_START", function() wipe(hovered); BA:ApplyFade() end)
-	ns.listen("COMBAT_END", function() BA:ApplyFade() end)
+	ns.listen("COMBAT_START", function() wipe(hovered); fadeCombat = true; BA:ApplyFade() end)
+	ns.listen("COMBAT_END", function() fadeCombat = false; BA:ApplyFade() end)
 	self:ApplyFade()
 end
 

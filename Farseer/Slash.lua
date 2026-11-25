@@ -21,6 +21,9 @@ local HELP = {
 	"|cffffd100/farseer click <template>|r / |cffffd100click restore|r — click-cast template (heal_mods, heal_direct, offheal)",
 	"|cffffd100/farseer raid|r / |cffffd100raid send|r — totem assignments between shamans",
 	"|cffffd100/farseer debug|r — show errors and totem slots",
+	"|cffffd100/farseer report|r — test report to copy (client features, test list, errors)",
+	"|cffffd100/farseer setup|r — first-time setup (spec, keybinds, alerts, look)",
+	"|cffffd100/farseer classic|r — switch between the Farseer and classic look (then /reload)",
 }
 
 function ns.Slash(msg)
@@ -68,6 +71,13 @@ function ns.Slash(msg)
 		local n, errors, kept = ns.BindingEngine:Apply(p.id, opts)
 		ns.print("%s: %d keybinds set%s.%s", p.name, n, (kept or 0) > 0 and (", " .. kept .. " kept") or "",
 			#errors > 0 and (" Errors: " .. table.concat(errors, "; ")) or "")
+	elseif cmd == "report" then
+		ns.Report:Show()
+	elseif cmd == "setup" or cmd == "wizard" then
+		ns.Setup:Show()
+	elseif cmd == "classic" then
+		ns.db.classicUI = not ns.db.classicUI
+		ns.print("look: %s after /reload.", ns.db.classicUI and "classic" or "Farseer")
 	elseif cmd == "kb" or cmd == "keys" then
 		ns.KeyMode:Toggle()
 	elseif cmd == "restore" then

@@ -131,12 +131,12 @@ function HU:Build()
 		r:SetJustifyH("LEFT")
 		ripRows[i] = r
 	end
+	local update = ns.timed("hud-timers", function() HU:UpdateTimers() end)
 	frame:SetScript("OnUpdate", function(_, elapsed)
 		frame.acc = (frame.acc or 0) + elapsed
 		if frame.acc < 0.1 then return end
 		frame.acc = 0
-		local ok, err = pcall(HU.UpdateTimers, HU)
-		if not ok then ns.report(err) end
+		update()
 	end)
 end
 
@@ -324,8 +324,15 @@ function HU:OnCast(name, castGUID)
 	end
 end
 
+HU.swingSeen = { main = 0, off = 0 }   -- för /farseer report: kommer PLAYER_SWING alls?
+
 function HU:OnSwing(dur, kind)
 	if ns.isSecret(kind) then return end
+	if kind ~= nil and kind == OFF_HAND and kind ~= MAIN_HAND then
+		self.swingSeen.off = self.swingSeen.off + 1
+	else
+		self.swingSeen.main = self.swingSeen.main + 1
+	end
 	local off = kind ~= nil and kind == OFF_HAND and kind ~= MAIN_HAND
 	if kind ~= nil and kind ~= MAIN_HAND and not off then return end
 	if ns.isSecret(dur) or type(dur) ~= "number" or dur <= 0 then
@@ -418,9 +425,6 @@ function HU:OnShamanLogin()
 	ns.listen("SPELLS_CHANGED", function() HU:Layout() end)
 	ns.listen("BARS_LAYOUT", function() HU:Layout() end)
 	ns.listen("HUD_CHANGED", function() HU:Layout() end)
-	C_Timer.NewTicker(1, function()
-		local ok, err = pcall(HU.UpdateCooldowns, HU)
-		if not ok then ns.report(err) end
-	end)
+	ns.every(1, "hud-cooldowns", function() HU:UpdateCooldowns() end)
 	self:Layout()
 end

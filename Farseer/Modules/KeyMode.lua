@@ -24,7 +24,7 @@ function KM:Candidates()
 	return list
 end
 
-local function commandFor(b) return "CLICK " .. b:GetName() .. ":LeftButton" end
+local function commandFor(b, mouse) return "CLICK " .. b:GetName() .. ":" .. (mouse or "LeftButton") end
 KM.CommandFor = commandFor
 
 local function bindingSet()
@@ -47,20 +47,23 @@ function KM:FullKey(key)
 end
 
 -- Bind tangenten till knappen. Knappens gamla tangent tas bort; det som låg på tangenten sparas.
-function KM:Bind(b, key)
+function KM:Bind(b, key, mouse)
 	if InCombatLockdown() or not (b and key) then return false end
-	local cmd = commandFor(b)
+	local cmd = commandFor(b, mouse)
 	local backup = ns.char.bindBackup
 	local old = ns.get(GetBindingAction, key)
 	if backup[key] == nil then backup[key] = (type(old) == "string" and old) or "" end
-	-- Knappens tidigare tangent(er) bort
-	for _ = 1, 4 do
-		local prev = ns.get(GetBindingKey, cmd)
-		if type(prev) ~= "string" or prev == key then break end
-		if backup[prev] == nil then backup[prev] = cmd end
-		pcall(SetBinding, prev)
+	-- Knappens tidigare tangenter bort (alla utom den nya)
+	local okKeys, k1, k2, k3, k4 = ns.getAll(GetBindingKey, cmd)
+	if okKeys then
+		for _, prev in ipairs({ k1, k2, k3, k4 }) do
+			if type(prev) == "string" and prev ~= key then
+				if backup[prev] == nil then backup[prev] = cmd end
+				pcall(SetBinding, prev)
+			end
+		end
 	end
-	local ok = pcall(SetBindingClick, key, b:GetName(), "LeftButton")
+	local ok = pcall(SetBindingClick, key, b:GetName(), mouse or "LeftButton")
 	if not ok then ok = pcall(SetBinding, key, cmd) end
 	pcall(SaveBindings, bindingSet())
 	ns.fire("BINDINGS_CHANGED")

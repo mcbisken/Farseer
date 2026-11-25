@@ -391,10 +391,7 @@ function RE:OnShamanLogin()
 			RE:ApplySpells()
 		end)
 	end)
-	C_Timer.NewTicker(1, function()
-		local ok, err = pcall(RE.Check, RE)
-		if not ok then ns.report(err) end
-	end)
+	ns.every(1, "reminders", function() RE:Check() end)
 end
 
 function RE:Refresh() self:ApplySpells(); self:Check() end

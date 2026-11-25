@@ -44,6 +44,7 @@ local frame
 local current
 local currentPrio = 0
 local lastSound = {}
+local lastSpeak = {}   -- uppläsning: samma varning högst var SOUND_GAP:e sekund (två som byter av varandra köas annars)
 local SOUND_GAP = 8
 
 -- Prioritet: en varning ersätter bara en som är lika viktig eller mindre viktig.
@@ -148,8 +149,13 @@ function AL:Speak(text)
 	if V and V.SpeakText and V.GetTtsVoices then
 		local ok, voices = pcall(V.GetTtsVoices)
 		local id = ok and type(voices) == "table" and voices[1] and voices[1].voiceID or 0
-		local dest = Enum and Enum.VoiceTtsDestination and Enum.VoiceTtsDestination.LocalPlayback or 1
-		if pcall(V.SpeakText, id, text, dest, 0, 100) then return true end
+		-- Nyare klienter: (röst, text, hastighet, volym). Äldre: (röst, text, destination, hastighet, volym).
+		local newer = not (Enum and Enum.VoiceTtsDestination)
+		if newer then
+			if pcall(V.SpeakText, id, text, 0, 100) then return true end
+		else
+			if pcall(V.SpeakText, id, text, Enum.VoiceTtsDestination.LocalPlayback or 1, 0, 100) then return true end
+		end
 	end
 	return false
 end
@@ -195,7 +201,10 @@ function AL:Show(key, spell, title, text, color, force, prio)
 			local kit = SOUNDKIT and SOUNDKIT.RAID_WARNING or 8959
 			pcall(PlaySound, kit, "Master")
 		end
-		if self:SpeakFor(prio) then self:Speak(title) end
+		if self:SpeakFor(prio) and (not lastSpeak[key] or now - lastSpeak[key] > SOUND_GAP) then
+			lastSpeak[key] = now
+			self:Speak(title)
+		end
 	end
 	return true
 end

@@ -41,7 +41,7 @@ test("v18: Call med valfritt set i strid via dolda multispell-knappar", function
 	-- Högerklick i strid: markeras som laddat, kontrolleras efter striden
 	MOCK.combat = true
 	b:Click("RightButton")
-	check(ns.Bars:LoadedIndex() == 2, "set 2 markerat som laddat i Call")
+	check(ns.Bars:LoadedIndex() ~= 2, "obekräftat: C-markeringen flyttas inte i strid")
 	-- Klienten körde multispell: slottarna innehåller set 2
 	for slot = 1, 4 do
 		local hb = _G["FarseerMS2_" .. slot]
@@ -50,6 +50,21 @@ test("v18: Call med valfritt set i strid via dolda multispell-knappar", function
 	MOCK.combat = false
 	ns.Bars:CheckCombatCall()
 	check(ns.Bars.combatCallState == "works", "efter striden: fungerar (" .. ns.Bars.combatCallState .. ")")
+	check(ns.Bars:LoadedIndex() == 2, "efter kontrollen: set 2 markerat som laddat i Call")
+	-- Setet låg redan i slottarna före klicket: kontrollen säger inget
+	ns.Bars.combatCallState = "unverified"
+	MOCK.combat = true
+	b:Click("RightButton")
+	MOCK.combat = false
+	ns.Bars:CheckCombatCall()
+	check(ns.Bars.combatCallState == "unverified", "redan laddat före klicket: ingen slutsats")
+	-- Bekräftat fungerande: markeringen flyttas direkt i strid
+	ns.Bars.combatCallState = "works"
+	ns.Bars:LoadCall(1)
+	MOCK.combat = true
+	b:Click("RightButton")
+	check(ns.Bars:LoadedIndex() == 2, "bekräftat: markeras direkt")
+	MOCK.combat = false
 	ns.Bars.combatCallState = "unverified"
 	check(#MOCK.errors == 0, "inga fel: " .. tostring(MOCK.errors[1]))
 end)
@@ -161,11 +176,13 @@ test("v18: tona ned totembarerna utanför strid", function()
 	local orig = sit.SetAlpha
 	sit.SetAlpha = function(self, a) alpha = a end
 	-- Andra tester har "hovrat" knappar utan att lämna dem: striden börjar = ingen mus över
-	ns.fire("COMBAT_START")
 	ns.char.fade.enabled = true
 	ns.char.fade.alpha = 0.4
+	-- Som i klienten: InCombatLockdown() är fortfarande false när PLAYER_REGEN_DISABLED hanteras
 	MOCK.combat = false
-	BA:ApplyFade()
+	ns.fire("COMBAT_START")
+	check(alpha == 1, "stridens början: full även om lockdown inte slagit till än (" .. tostring(alpha) .. ")")
+	ns.fire("COMBAT_END")
 	check(alpha == 0.4, "utanför strid: 0.4 (" .. tostring(alpha) .. ")")
 	MOCK.combat = true
 	BA:ApplyFade()

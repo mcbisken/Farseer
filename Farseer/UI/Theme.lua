@@ -27,6 +27,17 @@ T.C = {
 }
 local C = T.C
 
+-- Klassiskt utseende (Blizzards knappar och ramar): ett val i Settings, gäller efter /reload
+local classicAtLoad
+function T.Classic()
+	if classicAtLoad == nil then
+		if not ns.db then return false end
+		classicAtLoad = ns.db.classicUI == true
+	end
+	return classicAtLoad
+end
+function T.ResetClassic() classicAtLoad = nil end
+
 ---------------------------------------------------------------------------------------------------
 -- Typsnitt: Arial Narrow för text (rent och kompakt), Friz för rubriker. Andra språk: spelets eget.
 ---------------------------------------------------------------------------------------------------
@@ -88,7 +99,10 @@ local FALLBACK = {
 	FarseerFontTimer = "NumberFontNormal", FarseerFontLabel = "GameFontHighlightSmall",
 	FarseerFontAlert = "GameFontNormalHuge", FarseerFontAlertText = "GameFontHighlight",
 }
-function T.Font(name) return T.fonts[name] or FALLBACK[name] or "GameFontHighlight" end
+function T.Font(name)
+	if T.Classic() then return FALLBACK[name] or "GameFontHighlight" end
+	return T.fonts[name] or FALLBACK[name] or "GameFontHighlight"
+end
 
 -- Blizzards typsnitt i inställningsfönstret -> Farseers (samma roll, nytt utseende)
 T.MAP = {
@@ -104,6 +118,7 @@ T.MAP = {
 	GameFontWhite = "FarseerFontBody",
 }
 function T.Map(font)
+	if T.Classic() then return font end
 	local m = font and T.MAP[font]
 	if m and T.fonts[m] then return m end
 	return font
@@ -187,7 +202,7 @@ end
 -- Quickslot-ram (b.border) döljs. Fungerar på säkra knappar (bara texturer läggs till).
 ---------------------------------------------------------------------------------------------------
 function T.SkinIcon(b, opts)
-	if not b or b.farseerSkinned then return b end
+	if not b or b.farseerSkinned or T.Classic() then return b end
 	b.farseerSkinned = true
 	opts = opts or {}
 	if b.border and b.border.SetTexture then b.border:SetTexture(nil); b.border:Hide() end
@@ -234,13 +249,30 @@ function T.SkinIcon(b, opts)
 	if b.cd then
 		pcall(b.cd.SetDrawEdge, b.cd, false)
 		pcall(b.cd.SetSwipeColor, b.cd, 0, 0, 0, 0.72)
+		T.LiftText(b, b.cd, { "key", "count", "time", "label", "text" })
 	end
 	return b
 end
 
+-- Texter ovanför cooldown-svepet (en barnram ritas annars över knappens egna texter)
+function T.LiftText(b, cd, keys)
+	if not (b and cd and cd.GetFrameLevel) then return end
+	if not b.textTop then
+		b.textTop = CreateFrame("Frame", nil, b)
+		b.textTop:SetAllPoints(b)
+		pcall(b.textTop.EnableMouse, b.textTop, false)
+	end
+	local lvl = tonumber(cd:GetFrameLevel()) or 0
+	pcall(b.textTop.SetFrameLevel, b.textTop, lvl + 2)
+	for _, k in ipairs(keys) do
+		local fs = b[k]
+		if fs and fs.SetParent and fs.GetObjectType and fs:GetObjectType() == "FontString" then pcall(fs.SetParent, fs, b.textTop) end
+	end
+end
+
 -- Statusbar: jämn textur, mörk bakgrund och svart pixelram
 function T.SkinBar(bar)
-	if not bar or bar.farseerSkinned then return bar end
+	if not bar or bar.farseerSkinned or T.Classic() then return bar end
 	bar.farseerSkinned = true
 	pcall(bar.SetStatusBarTexture, bar, T.BAR)
 	if bar.bg then bar.bg:SetColorTexture(0.02, 0.025, 0.035, 0.85) end

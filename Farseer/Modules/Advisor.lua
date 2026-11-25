@@ -330,8 +330,5 @@ function AD:OnShamanLogin()
 		combatStart = nil
 		dispelCache.dirty = true
 	end)
-	C_Timer.NewTicker(0.4, function()
-		local ok, err = pcall(AD.Evaluate, AD)
-		if not ok then ns.report(err) end
-	end)
+	ns.every(0.4, "advisor", function() AD:Evaluate() end)
 end

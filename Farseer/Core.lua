@@ -95,6 +95,47 @@ local function report(err)
 end
 ns.report = report
 
+---------------------------------------------------------------------------------------------------
+-- Återkommande uppgifter: en ticker per intervall (uppgifter med samma intervall delar den), varje
+-- uppgift skyddad med pcall och tidmätt. /farseer report visar vilka som kostar mest.
+---------------------------------------------------------------------------------------------------
+ns.tasks = {}
+local buckets = {}
+local clock = rawget(_G, "debugprofilestop")
+
+local function runTask(t, ...)
+	local t0 = clock and clock()
+	local ok, err = pcall(t.fn, ...)
+	if not ok then report(err) end
+	if t0 then t.ms = t.ms + (clock() - t0) end
+	t.runs = t.runs + 1
+end
+ns.runTask = runTask
+
+function ns.every(interval, name, fn)
+	local b = buckets[interval]
+	if not b then
+		b = {}
+		buckets[interval] = b
+		C_Timer.NewTicker(interval, function()
+			for i = 1, #b do
+				if not b[i].paused then runTask(b[i]) end
+			end
+		end)
+	end
+	local t = { name = name, interval = interval, fn = fn, ms = 0, runs = 0 }
+	table.insert(b, t)
+	table.insert(ns.tasks, t)
+	return t
+end
+
+-- OnUpdate-funktioner som också ska tidmätas: returnerar en ersättare som anropar fn skyddat
+function ns.timed(name, fn)
+	local t = { name = name, interval = "frame", fn = fn, ms = 0, runs = 0 }
+	table.insert(ns.tasks, t)
+	return function(...) runTask(t, ...) end
+end
+
 -- ns.on(event, fn): fn(event, ...). Okända händelser kastar i Forever, så registreringen skyddas.
 function ns.on(event, fn)
 	if not handlers[event] then
@@ -405,6 +446,8 @@ ns.DEFAULTS = {
 		fearMobsRemoved = {},
 		bossRules = {},           -- egna: [lowername] = { name = "...", totem = "..." }
 		minimap = true,
+		classicUI = false,        -- Blizzards knappar/typsnitt i stället för Farseers tema (gäller efter /reload)
+		testlist = {},            -- testlistan: [id] = "ok" / "bad" (Data/TestPlan.lua)
 		profiles = {},            -- sparade profiler: [namn] = ögonblicksbild (Modules/Profiles.lua)
 	},
 	char = {
@@ -533,6 +576,8 @@ ns.DEFAULTS = {
 
 ns.on("ADDON_LOADED", function(_, name)
 	if name ~= ADDON then return end
+	-- Ny karaktär (inget sparat än): första-gången-fönstret visas
+	ns.freshChar = type(FarseerCharDB) ~= "table" or next(FarseerCharDB) == nil
 	FarseerDB = ns.merge(type(FarseerDB) == "table" and FarseerDB or {}, ns.DEFAULTS.account)
 	FarseerCharDB = ns.merge(type(FarseerCharDB) == "table" and FarseerCharDB or {}, ns.DEFAULTS.char)
 	ns.db = FarseerDB

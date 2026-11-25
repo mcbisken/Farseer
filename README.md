@@ -45,6 +45,7 @@ Kopierar `Farseer\` till `C:\SPEL\World of Warcraft\_forever_\Interface\AddOns\F
 | **Från andra addons** (v1.8) | Efter en genomgång av ShamanForever, ForeverTotems, TotemWatch, ShamUI m.fl.: högerklick på ett situationsset kastar Call of the Elements med just det setet även i strid (dolda `multispell`-knappar + makro), återuppliva-knapp när någon i gruppen är död (Ancestral Spirit), totemtiderna vita/gula/röda och blinkar de sista 5 s, ingen imbue-påminnelse med fiskespö, "Water Shield i grupp" (Lightning solo), uppläsning av varningar (text-till-tal), tona ned totembarerna utanför strid. |
 | **HUD och keybinds** (v1.9) | Off-hand-swing (dual wield), Flurry-laddningar på swing-baren, Earth Shock/Stormstrike/Lava Burst glöder när de är redo i strid, keybind-läge (`/farseer kb` eller Bindings-fliken): håll musen över en Farseer-knapp och tryck en tangent. |
 | **Nytt utseende** (v2.0) | Eget tema (`UI\Theme.lua`): mörk skiffer med shamanblå accent, Arial Narrow/Friz-typsnitt, platta knappar, kryssrutor, stegare och menyer, titelrad och sidomeny med grupperade flikar och ikoner, skugga och intoning. I spelet: svarta pixelramar och toning på alla ikonknappar, jämna statusbarer, ny varningsruta med färgad kant. |
+| **Inför testning** (v2.1) | `/farseer report`: testrapport att kopiera (klientfunktioner, testlistan, last per timer, senaste felen). Fliken *Test plan*: 16 punkter, det osäkraste först, markera Works/Broken. Klassiskt utseende (Settings eller `/farseer classic`, kräver /reload; `UI/WidgetsClassic.lua` = kontrollerna från v1.9). Första-gången-fönstret (`/farseer setup`): spec, keybinds (vanliga/Shift/bara lediga/inga), varningar, utseende — visas en gång för nya karaktärer. Alla timers via `ns.every` (en ticker per intervall, pcall + tidmätning). Granskningsfixar: nedtoningen släpper vid stridsstart, kryssrutornas bock syns, OOR röd igen, uppläsning max var 8:e s, Call-självtestet ger inga falska "works", keybind-läget tar bort alla gamla tangenter, texter ovanför cooldown-svepet. |
 | **Inställningar** | Visa/dölj, skala och storlek för alla bars, lås upp/flytta, minimap-ikon, påminnelser, återställ. |
 
 Minimap-ikon: vänsterklick = inställningar, högerklick = lås upp/lås bars, mittenklick = PvE/PvP, dra = flytta ikonen.
@@ -66,7 +67,7 @@ med alla inställningskombinationer, keybind-mallar + återställning, Call of t
 secret values, påminnelser, alla UI-flikar, slashkommandon och kontroll av oavsiktliga globaler.
 `tests/tests_v11.lua` täcker v1.1 (tysk klient, HUD, totemdöd, profiler, utrustning, trainer, checklista, T0.5, BiS-jämförelse).
 `tests/tests_v12.lua` täcker v1.2 (procs, mana, purge, casts, DR, totemräckvidd, spec, click-cast, raid-totems, downranking).
-2989 kontroller, 0 fel (2026-11-25). Addonet visar all text på engelska (kommentarer i koden är på svenska).
+3078 kontroller, 0 fel (2026-11-25). Addonet visar all text på engelska (kommentarer i koden är på svenska).
 
 ## Inte verifierat i riktiga klienten än
 Testerna kör mot en mock, inte mot spelet. Saker att kolla första gången i spelet:

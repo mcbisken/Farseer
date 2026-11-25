@@ -507,13 +507,18 @@ function TO:BuildBar()
 		b.range:Hide()
 		b.rangeText = b:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 		b.rangeText:SetPoint("CENTER", b, "CENTER", 0, 0)
-		b.rangeText:SetTextColor(1, 0.3, 0.3)
 		-- 1 px elementfärg (b.edge bakom ikonen) + svart ram utanför
-		ns.Theme.Border(b, { 0, 0, 0, 1 }, "OVERLAY", 1)
-		pcall(b.time.SetFontObject, b.time, ns.Theme.Font("FarseerFontTimer"))
-		pcall(b.pulse.SetFontObject, b.pulse, ns.Theme.Font("FarseerFontLabel"))
-		pcall(b.rangeText.SetFontObject, b.rangeText, ns.Theme.Font("FarseerFontLabel"))
-		pcall(b.cd.SetSwipeColor, b.cd, 0, 0, 0, 0.7)
+		if not ns.Theme.Classic() then
+			ns.Theme.Border(b, { 0, 0, 0, 1 }, "OVERLAY", 1)
+			pcall(b.time.SetFontObject, b.time, ns.Theme.Font("FarseerFontTimer"))
+			pcall(b.pulse.SetFontObject, b.pulse, ns.Theme.Font("FarseerFontLabel"))
+			pcall(b.rangeText.SetFontObject, b.rangeText, ns.Theme.Font("FarseerFontLabel"))
+			pcall(b.cd.SetSwipeColor, b.cd, 0, 0, 0, 0.7)
+		end
+		-- Färgen efter typsnittet (SetFontObject återställer färgen)
+		b.rangeText:SetTextColor(1, 0.3, 0.3)
+		-- Timertexten ovanför cooldown-svepet
+		ns.Theme.LiftText(b, b.cd, { "time", "pulse", "rangeText" })
 		buttons[slot] = b
 	end
 	-- Totemic Call (flytta totems till dig), högerklick Totemic Recall
@@ -554,8 +559,8 @@ function TO:BuildBar()
 	bar:SetShown(cfg.show)
 	self:ApplyCallButton()
 	-- Timertext uppdateras ofta, ikoner/cooldown bara vid ändringar
-	C_Timer.NewTicker(0.25, function() TO:UpdateTimes() end)
-	C_Timer.NewTicker(1, function()
+	ns.every(0.25, "totem-timers", function() TO:UpdateTimes() end)
+	ns.every(1, "totem-checks", function()
 		local ok, err = pcall(TO.CheckRange, TO)
 		if not ok then ns.report(err) end
 		ok, err = pcall(TO.CheckExpiry, TO)

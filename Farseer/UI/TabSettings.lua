@@ -146,10 +146,14 @@ local function build(p)
 	odrop:SetPoint("TOPLEFT", drop, "BOTTOMLEFT", 0, -4)
 
 	local dh = UI.Header(p, "Maintenance")
-	dh:SetPoint("TOPLEFT", ol, "BOTTOMLEFT", -4, -20)
-	local dbg = UI.Button(p, "Show errors/debug", 140, 24, function() ns.Slash("debug") end)
+	dh:SetPoint("TOPLEFT", ol, "BOTTOMLEFT", -4, -14)
+	local dbg = UI.Button(p, "Test report", 110, 24, function() ns.Report:Show() end,
+		"Client features, test list, load and errors in one box to copy. Also /farseer report.")
 	dbg:SetPoint("TOPLEFT", dh, "BOTTOMLEFT", 0, -6)
-	local wipeChar = UI.Button(p, "Reset character", 160, 24, function()
+	local wiz = UI.Button(p, "Setup wizard", 110, 24, function() ns.Options:Hide(); ns.Setup:Show() end,
+		"The first-time questions again: spec, keybinds, alerts, look. Nothing changes until Finish.")
+	wiz:SetPoint("LEFT", dbg, "RIGHT", 6, 0)
+	local wipeChar = UI.Button(p, "Reset character", 130, 24, function()
 		if InCombatLockdown() then ns.print("can't reset in combat."); return end
 		UI.Confirm("Reset ALL Farseer settings for this character (situations, bars, warnings)? "
 			.. "Macros and keybinds in the game are not touched. Type /reload afterwards.", function()
@@ -165,11 +169,17 @@ local function build(p)
 			ns.print("settings reset — type /reload.")
 		end)
 	end)
-	wipeChar:SetPoint("LEFT", dbg, "RIGHT", 6, 0)
+	wipeChar:SetPoint("LEFT", wiz, "RIGHT", 6, 0)
+	local cl = track(UI.Check(p, "Classic look (Blizzard style, needs /reload)", function() return ns.db.classicUI == true end,
+		function(v)
+			ns.db.classicUI = v
+			ns.print("look: %s after /reload.", v and "classic" or "Farseer")
+		end, "Blizzard's own buttons, checkboxes and fonts, and no Farseer borders on the bars. Use it if the new look renders badly."))
+	cl:SetPoint("TOPLEFT", dbg, "BOTTOMLEFT", -4, -4)
 	local info = UI.Label(p,
-		"Changes to secure buttons (bars, totems, keybinds, macros) can't be made in combat — they are applied automatically when combat ends.",
+		"Secure buttons, keybinds and macros can't change in combat — Farseer applies changes when combat ends.",
 		"GameFontHighlightSmall")
-	info:SetPoint("TOPLEFT", dbg, "BOTTOMLEFT", 0, -10)
+	info:SetPoint("TOPLEFT", cl, "BOTTOMLEFT", 4, -2)
 	info:SetWidth(400)
 end
 

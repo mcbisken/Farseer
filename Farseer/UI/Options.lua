@@ -17,7 +17,7 @@ local current
 
 -- Grupper och ikoner i sidomenyn (flikar som inte står här hamnar sist under "More")
 local GROUPS = {
-	{ "General", { "overview", "settings", "profiles" } },
+	{ "General", { "overview", "settings", "profiles", "test" } },
 	{ "Totems", { "situations", "advisor", "raid" } },
 	{ "Combat", { "combat", "procs", "alerts", "healing" } },
 	{ "Setup", { "macros", "bindings" } },
@@ -27,6 +27,7 @@ local ICONS = {
 	overview = "Interface\\Icons\\INV_Misc_Book_09",
 	settings = "Interface\\Icons\\INV_Misc_Gear_01",
 	profiles = "Interface\\Icons\\INV_Misc_Note_02",
+	test = "Interface\\Icons\\INV_Misc_Spyglass_02",
 	situations = "Interface\\Icons\\Spell_Nature_StoneSkinTotem",
 	advisor = "Interface\\Icons\\Spell_Nature_TremorTotem",
 	raid = "Interface\\Icons\\Spell_Nature_GroundingTotem",
@@ -255,7 +256,7 @@ local function build()
 	local foot = side:CreateFontString(nil, "OVERLAY", T.Font("FarseerFontGroup"))
 	foot:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", 20, 12)
 	foot:SetJustifyH("LEFT")
-	foot:SetText("/farseer  ·  /farseer kb\n/farseer debug")
+	foot:SetText("/farseer kb  ·  /farseer setup\n/farseer report")
 
 	-- Flikarnas yta
 	main.body = CreateFrame("Frame", nil, main)
@@ -292,6 +293,7 @@ function OP:Toggle(tab)
 	main:Show()
 	selectTab(tab or current or tabs[1].id)
 end
+function OP:Hide() if main then main:Hide() end end
 function OP:Open(tab)
 	if not main then build() end
 	main:Show()

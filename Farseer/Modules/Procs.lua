@@ -217,15 +217,19 @@ function PC:Build()
 	drText:SetJustifyH("LEFT")
 	self.castBar, self.wfText, self.drText = castBar, wfText, drText
 	-- Timers och text 10 ggr/s, auror (Maelstrom, sköld, purge) 2,5 ggr/s
+	local full = ns.timed("procs-auras", function() PC:Update() end)
+	local fast = ns.timed("procs-timers", function() PC:UpdateFast() end)
 	frame:SetScript("OnUpdate", function(_, elapsed)
 		frame.acc = (frame.acc or 0) + elapsed
 		frame.slow = (frame.slow or 0) + elapsed
 		if frame.acc < 0.1 then return end
 		frame.acc = 0
-		local full = frame.slow >= 0.4
-		if full then frame.slow = 0 end
-		local ok, err = pcall(full and PC.Update or PC.UpdateFast, PC)
-		if not ok then ns.report(err) end
+		if frame.slow >= 0.4 then
+			frame.slow = 0
+			full()
+		else
+			fast()
+		end
 	end)
 end
 
@@ -1598,10 +1602,6 @@ function PC:OnShamanLogin()
 	ns.listen("PROCS_CHANGED", function() PC:Refresh() end)
 	ns.listen("TOTEMS_CHANGED", function() PC:OnTotemsChanged() end)
 	ns.listen("SPELLS_CHANGED", function() PC:Refresh() end)
-	C_Timer.NewTicker(0.5, function()
-		local ok, err = pcall(PC.CheckMana, PC)
-		if not ok then ns.report(err) end
-		ok, err = pcall(PC.CheckWaterBreathing, PC)
-		if not ok then ns.report(err) end
-	end)
+	ns.every(0.5, "procs-mana", function() PC:CheckMana() end)
+	ns.every(0.5, "procs-water-breathing", function() PC:CheckWaterBreathing() end)
 end

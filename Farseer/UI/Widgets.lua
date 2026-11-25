@@ -126,12 +126,23 @@ end
 function UI.Check(parent, label, get, set, tip)
 	local cb = CreateFrame("CheckButton", nil, parent)
 	cb:SetSize(24, 24)
-	local box = CreateFrame("Frame", nil, cb, "BackdropTemplate")
+	-- Rutan ritas med texturer på själva knappen: en egen barnram skulle hamna ovanpå bocken och hovern
+	local box = cb:CreateTexture(nil, "BACKGROUND")
 	box:SetSize(16, 16)
 	box:SetPoint("LEFT", 4, 0)
-	T.Skin(box, C.input, C.borderHi)
-	pcall(box.EnableMouse, box, false)
+	box:SetColorTexture(C.input[1], C.input[2], C.input[3], 1)
 	cb.box = box
+	local edges = {}
+	for i = 1, 4 do
+		local e = cb:CreateTexture(nil, "BORDER")
+		e:SetColorTexture(C.borderHi[1], C.borderHi[2], C.borderHi[3], 1)
+		edges[i] = e
+	end
+	edges[1]:SetPoint("TOPLEFT", box, "TOPLEFT"); edges[1]:SetPoint("TOPRIGHT", box, "TOPRIGHT"); edges[1]:SetHeight(1)
+	edges[2]:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT"); edges[2]:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT"); edges[2]:SetHeight(1)
+	edges[3]:SetPoint("TOPLEFT", box, "TOPLEFT"); edges[3]:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT"); edges[3]:SetWidth(1)
+	edges[4]:SetPoint("TOPRIGHT", box, "TOPRIGHT"); edges[4]:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT"); edges[4]:SetWidth(1)
+	cb.edges = edges
 	local ck = cb:CreateTexture(nil, "OVERLAY")
 	ck:SetPoint("TOPLEFT", box, "TOPLEFT", 3, -3)
 	ck:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -3, 3)
