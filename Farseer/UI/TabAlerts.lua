@@ -127,6 +127,12 @@ tab("alerts", "Alerts", function(p, track)
 		{ "No sound for info alerts", function() return al.quietInfo ~= false end, function(v) al.quietInfo = v end,
 			"Totem died/expiring/out of range, purge and pull reminders show silently. Important warnings (fear, boss "
 				.. "fear, kick, low mana) still play the sound." },
+		{ "Read alerts aloud:", dropdown = true, width = 200, items = {
+			{ text = "Off", value = "off" },
+			{ text = "Critical only (fear, kick ...)", value = "critical" },
+			{ text = "Critical and advice", value = "advice" },
+		}, function() return al.speak or "off" end, function(v) al.speak = v; if v ~= "off" then ns.Alert:Speak("Farseer") end end,
+			"Text-to-speech reads the alert's title (\"TREMOR!\"). Uses the game's voice (Options > Accessibility > Text to Speech)." },
 		{ "Quiet when solo", function() return adv.soloQuiet end, function(v) adv.soloQuiet = v end,
 			"Solo outside instances: no \"DROP TOTEMS!\", no out-of-range or expiry warnings (nice while leveling)." },
 		{ "Low mana: suggestion", function() return c.mana end, function(v) c.mana = v end,

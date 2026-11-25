@@ -601,6 +601,18 @@ function TO:UpdateTimes()
 	for slot, b in pairs(buttons) do
 		local r = self:Remaining(slot)
 		b.time:SetText(r and fmtTime(r) or "")
+		-- Vit > 30 s, gul 11-30 s, röd 10 s och mindre; de sista 5 sekunderna blinkar den
+		if r and r <= 10 then
+			if r <= 5 and math.floor(now * 4) % 2 == 0 then
+				b.time:SetTextColor(1, 0.85, 0.85)
+			else
+				b.time:SetTextColor(1, 0.2, 0.2)
+			end
+		elseif r and r <= 30 then
+			b.time:SetTextColor(1, 0.85, 0.2)
+		else
+			b.time:SetTextColor(1, 1, 1)
+		end
 		local s = state[slot]
 		if pulseOn and s and s.name == "Tremor Totem" then
 			b.pulse:SetText(string.format("|cffffd100%.1f|r", self:TremorPulse(now)))

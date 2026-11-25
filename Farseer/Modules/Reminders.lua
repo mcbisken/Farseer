@@ -153,6 +153,10 @@ end
 function RE:ShieldSpell()
 	local cfg = ns.char.reminders
 	if cfg.preferWaterShield and ns.Spellbook:Knows("Water Shield") then return "Water Shield" end
+	-- Grupp: Water Shield (mana till healing/långa strider), solo: Lightning Shield (skada)
+	if cfg.waterInGroup and ns.Spellbook:Knows("Water Shield") and ns.get(IsInGroup) == true then
+		return "Water Shield"
+	end
 	if ns.Spellbook:Knows("Lightning Shield") then return "Lightning Shield" end
 	if ns.Spellbook:Knows("Water Shield") then return "Water Shield" end
 end
@@ -180,9 +184,20 @@ function RE:OffhandMacro(spell)
 	return "/cast " .. ns.L(spell) .. "\n/use 17"
 end
 
+-- Fiskespö i main hand: ingen imbue-påminnelse (som ShamanForever)
+function RE:FishingPole(id)
+	id = id or ns.get(GetInventoryItemID, "player", 16)
+	if not id then return false end
+	if C_Item and C_Item.GetItemInfoInstant then
+		local ok, _, _, _, _, _, classID, subclassID = ns.getAll(C_Item.GetItemInfoInstant, id)
+		if ok and classID == 2 and subclassID == 20 then return true end
+	end
+	return false
+end
+
 local function hasWeapon()
 	local id = ns.get(GetInventoryItemID, "player", 16)
-	return id ~= nil
+	return id ~= nil and not RE:FishingPole(id)
 end
 
 ---------------------------------------------------------------------------------------------------
@@ -353,6 +368,12 @@ function RE:OnShamanLogin()
 	self:ApplySpells()
 	self:Check()
 	ns.listen("SPELLS_CHANGED", function() RE:ApplySpells() end)
+	-- Water Shield i grupp: skölden byts när du går med i eller lämnar en grupp (efter striden)
+	ns.on("GROUP_ROSTER_UPDATE", function()
+		if ns.char.reminders.waterInGroup then
+			ns.afterCombat("reminder-shield", function() RE:ApplySpells() end)
+		end
+	end)
 	ns.on("UNIT_INVENTORY_CHANGED", function(_, unit) if unit == "player" then RE:Check() end end)
 	-- Nytt vapen i main hand/off-hand: visa/dölj off-hand-knappen (väntar till efter strid vid behov)
 	ns.on("PLAYER_EQUIPMENT_CHANGED", function(_, slot)

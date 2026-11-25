@@ -398,6 +398,7 @@ ns.DEFAULTS = {
 		alert = { point = "TOP", x = 0, y = -160, scale = 1, sound = true,
 			mode = "always",          -- var varningar visas: always / group / instance / off
 			quietInfo = true,         -- inget ljud för upplysningar (totem dog/gick ut, purge ...)
+			speak = "off",            -- läs upp varningar: off / critical / advice (råd + kritiska)
 		},
 		grid = { show = true, snap = true, size = 16 },   -- rutnät + snäpp när ramarna är upplåsta
 		fearMobs = {},            -- egna tillägg: [lowername] = "Namn"
@@ -421,7 +422,9 @@ ns.DEFAULTS = {
 			hud = { point = "BOTTOM", x = 0, y = 310, scale = 1, show = true, size = 30 },
 			gear = { point = "BOTTOM", x = -260, y = 262, scale = 1, show = true, size = 28 },
 			procs = { point = "BOTTOM", x = 0, y = 392, scale = 1, show = true, size = 36 },
+			rez = { point = "BOTTOM", x = 260, y = 262, scale = 1, show = true, size = 34 },
 		},
+		fade = { enabled = false, alpha = 0.35 },   -- tona ned totembarerna utanför strid (musen över = full)
 		counterTotems = {
 			"Tremor Totem", "Poison Cleansing Totem", "Disease Cleansing Totem", "Grounding Totem",
 			"Earthbind Totem", "Stoneclaw Totem", "Fire Resistance Totem", "Frost Resistance Totem",
@@ -446,6 +449,7 @@ ns.DEFAULTS = {
 			imbue = true,
 			imbueMinutes = 5,
 			preferWaterShield = false,
+			waterInGroup = false,     -- Water Shield i grupp, Lightning Shield solo
 			imbueSpell = "auto",
 			offhand = true,           -- påminn om imbue på off-hand (dual wield)
 			offhandSpell = "auto",    -- "auto" = Flametongue Weapon om du har den, annars samma som main hand

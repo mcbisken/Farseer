@@ -137,6 +137,7 @@ function ns.Slash(msg)
 		ns.print("auras secret now: %s, in combat: %s", tostring(secret), tostring(InCombatLockdown()))
 		ns.print("maelstrom display: %s", ns.Procs:MaelstromBoxState())
 		ns.print("shield display: %s", ns.Procs:ShieldBoxState())
+		ns.print("Call with any set in combat: %s", ns.Bars.combatCallState or "?")
 		local call, set = ns.Bars:CallSpell()
 		if call then
 			local c = ns.Totems:CallSetContents(set)

@@ -117,6 +117,32 @@ local function flashing() return GetTime() < flashUntil end
 
 -- key: regelns id, så samma varning inte poppar/låter om och om igen. prio: se AL.PRIO (standard advice).
 -- Returnerar true om varningen visades.
+-- Läs upp med spelets text-till-tal (som TotemWatch). speak: off / critical / advice
+function AL:Speak(text)
+	if type(text) ~= "string" or text == "" then return false end
+	text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+	if TextToSpeech_Speak then
+		local voice = TextToSpeech_GetSelectedVoice and Enum and Enum.TtsVoiceType
+			and select(2, pcall(TextToSpeech_GetSelectedVoice, Enum.TtsVoiceType.Standard)) or nil
+		if pcall(TextToSpeech_Speak, text, voice) then return true end
+	end
+	local V = C_VoiceChat
+	if V and V.SpeakText and V.GetTtsVoices then
+		local ok, voices = pcall(V.GetTtsVoices)
+		local id = ok and type(voices) == "table" and voices[1] and voices[1].voiceID or 0
+		local dest = Enum and Enum.VoiceTtsDestination and Enum.VoiceTtsDestination.LocalPlayback or 1
+		if pcall(V.SpeakText, id, text, dest, 0, 100) then return true end
+	end
+	return false
+end
+
+function AL:SpeakFor(prio)
+	local mode = ns.db.alert.speak or "off"
+	if mode == "critical" then return prio >= AL.PRIO.critical end
+	if mode == "advice" then return prio >= AL.PRIO.advice end
+	return false
+end
+
 function AL:Show(key, spell, title, text, color, force, prio)
 	if not frame then return false end
 	if not self:Allowed() then return false end
@@ -150,6 +176,7 @@ function AL:Show(key, spell, title, text, color, force, prio)
 			local kit = SOUNDKIT and SOUNDKIT.RAID_WARNING or 8959
 			pcall(PlaySound, kit, "Master")
 		end
+		if self:SpeakFor(prio) then self:Speak(title) end
 	end
 	return true
 end

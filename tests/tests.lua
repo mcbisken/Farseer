@@ -203,7 +203,9 @@ test("situationsknappar och Call of the Elements", function()
 	check(seq and seq:find("^/castsequence reset=combat/10 "), "sekvens: " .. tostring(seq))
 	check(seq:find(s.totems[1], 1, true), "första totemet i sekvensen")
 	check(#seq <= 255, "sekvens <= 255")
-	check(b:GetAttribute("*type2") == "spell" and b:GetAttribute("*spell2") == "Call of the Elements", "högerklick = Call")
+	local m2 = b:GetAttribute("*macrotext2") or ""
+	check(b:GetAttribute("*type2") == "macro" and m2:find("/cast Call of the Elements$"), "högerklick = Call (makro): " .. m2)
+	check(m2:find("/click FarseerMS1_1", 1, true), "högerklick skriver setet via dolda knappar")
 	-- högerklick utanför strid skriver in setet
 	MOCK.multicast = {}
 	b:Click("RightButton", true)

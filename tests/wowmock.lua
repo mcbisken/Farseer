@@ -48,7 +48,15 @@ MOCK.newWidget = newWidget
 
 function Widget:SetScript(k, fn) self.__scripts[k] = fn end
 function Widget:GetScript(k) return self.__scripts[k] end
-function Widget:HookScript(k, fn) self.__scripts[k] = fn end
+-- Som i spelet: kroken körs efter det befintliga scriptet
+function Widget:HookScript(k, fn)
+	local old = self.__scripts[k]
+	if old then
+		self.__scripts[k] = function(...) old(...); return fn(...) end
+	else
+		self.__scripts[k] = fn
+	end
+end
 function Widget:RegisterEvent(e)
 	MOCK.events[e] = MOCK.events[e] or {}
 	MOCK.events[e][self] = true

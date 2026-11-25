@@ -36,4 +36,5 @@
 	<Binding name="CLICK FarseerShieldButton:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK FarseerImbueButton:LeftButton" category="ADDONS"/>
 	<Binding name="CLICK FarseerImbueOffButton:LeftButton" category="ADDONS"/>
+	<Binding name="CLICK FarseerRezButton:LeftButton" category="ADDONS"/>
 </Bindings>

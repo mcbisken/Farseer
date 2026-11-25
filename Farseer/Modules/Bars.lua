@@ -11,6 +11,9 @@ local MAX = ns.MAX_SITUATIONS
 local sitBar, cntBar
 local sitButtons, cntButtons = {}, {}
 local loadedIndex, loadedMode
+local msButtons = {}       -- [situation][slot] = dold säker knapp (type "multispell") som skriver Call-slotten
+local combatCall           -- { index, mode, set }: högerklick i strid som ska kontrolleras efter striden
+BA.combatCallState = "unverified"   -- unverified / works / failed
 
 function BA:OnLoad()
 	if type(ns.char.situations) ~= "table" then
@@ -131,6 +134,60 @@ function BA:LoadCall(index, mode)
 	return true
 end
 
+---------------------------------------------------------------------------------------------------
+-- Call med valfritt set i strid (som ShamanForever/ForeverTotems): SetMultiCastSpell är skyddad, men en
+-- säker knapp med type "multispell" får göra det vid ett klick. Högerklick kör ett makro som /click:ar
+-- fyra dolda sådana knappar (en per element) och sedan castar Call. Går det inte i klienten castar Call
+-- det som redan ligger i slottarna (som förut). Attributen sätts utanför strid.
+---------------------------------------------------------------------------------------------------
+function BA:CombatCallMacro(index, s, call)
+	if refused or not SetMultiCastSpell or not msButtons[index] then return nil end
+	local _, set = self:CallSpell()
+	if not set then return nil end
+	local want = {}
+	for _, name in ipairs(self:KnownTotems(s)) do
+		local el = ns.Spellbook:TotemElement(name)
+		if el then want[ns.SLOT[el]] = ns.Spellbook:TotemSpellID(name) or ns.Spellbook:ID(name) end
+	end
+	-- /click skickar "släppt" om inget annat sägs; med ActionButtonUseKeyDown på reagerar knappen bara på "nedtryckt"
+	local getBool = (C_CVar and C_CVar.GetCVarBool) or rawget(_G, "GetCVarBool")
+	local down = ns.get(getBool, "ActionButtonUseKeyDown") == true and " LeftButton 1" or ""
+	local lines = {}
+	for slot = 1, 4 do
+		local m = msButtons[index][slot]
+		m:SetAttribute("type", "multispell")
+		m:SetAttribute("action", ns.Totems:MultiCastAction(set, slot))
+		m:SetAttribute("spell", want[slot] or 0)
+		lines[#lines + 1] = "/click " .. m:GetName() .. down
+	end
+	lines[#lines + 1] = "/cast " .. ns.L(call)
+	return table.concat(lines, "\n"), set
+end
+
+-- Efter striden: ligger setet från högerklicket i strid i Call-slottarna? Då fungerar det i klienten.
+function BA:CheckCombatCall()
+	local c = combatCall
+	combatCall = nil
+	if not c or c.mode ~= self:Mode() then return end
+	local s = self:List(c.mode)[c.index]
+	if not s then return end
+	local have = ns.Totems:CallSetContents(c.set)
+	local ok, any = true, false
+	for _, name in ipairs(self:KnownTotems(s)) do
+		local el = ns.Spellbook:TotemElement(name)
+		if el then
+			any = true
+			if have[ns.SLOT[el]] ~= name then ok = false end
+		end
+	end
+	if not any then return end
+	if ok then
+		BA.combatCallState = "works"
+	elseif BA.combatCallState ~= "works" then
+		BA.combatCallState = "failed"
+	end
+end
+
 function BA:LoadedIndex()
 	if loadedMode == self:Mode() then return loadedIndex end
 end
@@ -217,7 +274,14 @@ function BA:BuildSituationBar()
 		b:SetScript("PreClick", function(self, button, down)
 			if not BA:PressCounts(self, button, down) then return end
 			if button == "RightButton" then
-				if not InCombatLockdown() then BA:LoadCall(self.index) end
+				if not InCombatLockdown() then
+					BA:LoadCall(self.index)
+				elseif self.combatCall then
+					-- Makrot skriver setet i Call-slottarna och castar Call: markera det och kontrollera efter striden
+					loadedIndex, loadedMode = self.index, BA:Mode()
+					combatCall = { index = self.index, mode = loadedMode, set = self.combatCall }
+					BA:UpdateMarks()
+				end
 				-- Utan Call-spell kör högerklick samma /castsequence som vänsterklick
 				if not BA:CallSpell() then BA:SeqPressed(self.index) end
 			else
@@ -226,6 +290,14 @@ function BA:BuildSituationBar()
 		end)
 		b:SetScript("OnEnter", sitTooltip)
 		b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+		msButtons[i] = {}
+		for slot = 1, 4 do
+			local m = CreateFrame("Button", "FarseerMS" .. i .. "_" .. slot, sitBar, "SecureActionButtonTemplate")
+			m:SetSize(1, 1)
+			m:RegisterForClicks("AnyUp", "AnyDown")
+			m:Hide()
+			msButtons[i][slot] = m
+		end
 		_G["BINDING_NAME_CLICK FarseerSit" .. i .. ":LeftButton"] = "Situation " .. i .. ": next totem"
 		_G["BINDING_NAME_CLICK FarseerSit" .. i .. ":RightButton"] = "Situation " .. i .. ": full set (Call)"
 		sitButtons[i] = b
@@ -258,7 +330,15 @@ function BA:ApplySituations()
 			local totems = self:KnownTotems(s)
 			b:SetAttribute("type", seq and "macro" or nil)
 			b:SetAttribute("macrotext", seq)
-			if call and seq then
+			local callMacro, callSet = nil, nil
+			if call and seq then callMacro, callSet = self:CombatCallMacro(i, s, call) end
+			b.combatCall = callMacro and callSet or nil
+			if callMacro then
+				-- Fungerar även i strid: dolda knappar skriver setets totems i Call-slottarna, sedan castas Call
+				b:SetAttribute("*type2", "macro")
+				b:SetAttribute("*macrotext2", callMacro)
+				b:SetAttribute("*spell2", nil)
+			elseif call and seq then
 				b:SetAttribute("*type2", "spell")
 				b:SetAttribute("*spell2", ns.L(call))
 				b:SetAttribute("*macrotext2", nil)
@@ -646,7 +726,14 @@ function BA:OnShamanLogin()
 	ns.on("SPELL_UPDATE_USABLE", function() BA:QueueMana() end)
 	ns.listen("PLAYER_CAST", function(name) BA:OnCast(name) end)
 	ns.listen("TOTEMS_CHANGED", function() BA:QueueMana() end)
-	ns.listen("COMBAT_END", function() BA:ResetSequences(); BA:UpdateMana() end)
+	ns.listen("COMBAT_END", function() BA:CheckCombatCall(); BA:ResetSequences(); BA:UpdateMana() end)
+	-- Makrot för Call i strid beror på ActionButtonUseKeyDown
+	ns.on("CVAR_UPDATE", function(_, name)
+		if type(name) == "string" and not ns.isSecret(name) and name:lower():find("actionbuttonusekeydown") then
+			ns.afterCombat("situations", function() BA:ApplySituations() end)
+		end
+	end)
+	self:SetupFade()
 	ns.listen("BARS_LAYOUT", function()
 		ns.afterCombat("bars-layout", function()
 			ns.placeFrame(sitBar, ns.char.bars.situations)
@@ -654,6 +741,44 @@ function BA:OnShamanLogin()
 			BA:Refresh()
 		end)
 	end)
+end
+
+---------------------------------------------------------------------------------------------------
+-- Tona ned totembarerna utanför strid (som ForeverTotems/ShamanForever): full synlighet i strid och när
+-- musen är över. Alpha får ändras även på säkra ramar i strid.
+---------------------------------------------------------------------------------------------------
+local fadeFrames = {}
+local hovered = {}         -- [knapp] = true medan musen är över den
+
+function BA:FadeFrames() return fadeFrames end
+
+function BA:ApplyFade()
+	local f = ns.char.fade or {}
+	local a = 1
+	if f.enabled and not InCombatLockdown() and next(hovered) == nil then a = tonumber(f.alpha) or 0.35 end
+	for _, fr in ipairs(fadeFrames) do fr:SetAlpha(a) end
+end
+
+local function hookHover(fr)
+	if not (fr and fr.HookScript) or fr.farseerFade then return end
+	fr.farseerFade = true
+	fr:HookScript("OnEnter", function(self) hovered[self] = true; BA:ApplyFade() end)
+	fr:HookScript("OnLeave", function(self) hovered[self] = nil; BA:ApplyFade() end)
+end
+
+function BA:SetupFade()
+	wipe(fadeFrames)
+	for _, name in ipairs({ "FarseerSituationBar", "FarseerCounterBar", "FarseerTotemBar" }) do
+		local fr = _G[name]
+		if type(fr) == "table" then table.insert(fadeFrames, fr) end
+	end
+	for _, b in ipairs(sitButtons) do hookHover(b) end
+	for _, b in ipairs(cntButtons) do hookHover(b) end
+	for _, el in ipairs(ns.ELEMENTS) do hookHover(_G["FarseerTotem" .. el]) end
+	hookHover(_G.FarseerTotemicCall)
+	ns.listen("COMBAT_START", function() wipe(hovered); BA:ApplyFade() end)
+	ns.listen("COMBAT_END", function() BA:ApplyFade() end)
+	self:ApplyFade()
 end
 
 _G.BINDING_HEADER_FARSEER = "Farseer"

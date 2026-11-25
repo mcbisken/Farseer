@@ -11,6 +11,7 @@ local BARS = {
 	{ "counter", "Counter totems", true },
 	{ "totems", "Totem timers", false },
 	{ "reminders", "Reminders (shield/imbue)", false },
+	{ "rez", "Resurrect button (dead party member)", false },
 }
 -- HUD och utrustningsset ställs in på Strid-fliken, procs-rutan och totemräckvidd på Larm-fliken
 
@@ -78,8 +79,17 @@ local function build(p)
 		function(v) grid.size = v; ns.Grid:Update() end))
 	gsz:SetPoint("TOPLEFT", gsn, "BOTTOMLEFT", 4, -2)
 
+	local fd = ns.char.fade
+	local fc = track(UI.Check(p, "Fade totem bars out of combat", function() return fd.enabled end, function(v)
+		fd.enabled = v
+		ns.Bars:ApplyFade()
+	end, "Situation, counter and timer bars are see-through out of combat. Full in combat and under the mouse."))
+	fc:SetPoint("TOPLEFT", gsz, "BOTTOMLEFT", -4, -4)
+	local fa = track(UI.Stepper(p, "Faded opacity", 0, 0.9, 0.05, function() return fd.alpha or 0.35 end,
+		function(v) fd.alpha = v; ns.Bars:ApplyFade() end, "%.2f"))
+	fa:SetPoint("TOPLEFT", fc, "BOTTOMLEFT", 4, -2)
 	local rh = UI.Header(p, "Reminders")
-	rh:SetPoint("TOPLEFT", gsz, "BOTTOMLEFT", -4, -12)
+	rh:SetPoint("TOPLEFT", fa, "BOTTOMLEFT", -4, -12)
 	local rem = ns.char.reminders
 	local c1 = track(UI.Check(p, "Remind about shield", function() return rem.shield end, function(v) rem.shield = v end))
 	c1:SetPoint("TOPLEFT", rh, "BOTTOMLEFT", 0, -6)
@@ -95,10 +105,15 @@ local function build(p)
 		ns.Reminders:Refresh()
 	end, "The shield button and the FS Shield macro use Water Shield (if you have the talent)."))
 	c3:SetPoint("TOPLEFT", c4, "BOTTOMLEFT", 0, 0)
+	local c6 = track(UI.Check(p, "Water Shield in groups", function() return rem.waterInGroup end, function(v)
+		rem.waterInGroup = v
+		ns.Reminders:Refresh()
+	end, "Solo: Lightning Shield. In a group: Water Shield (if you have it). Switches after combat."))
+	c6:SetPoint("TOPLEFT", c3, "BOTTOMLEFT", 0, 0)
 	local c5 = track(UI.Check(p, "Weapon oil/stone in checklist", function() return rem.oil ~= false end,
 		function(v) rem.oil = v end,
 		"In Forever oils and sharpening stones stack with imbues. Casters: Wizard/Mana Oil. Enhancement: sharpening stones or weightstones."))
-	c5:SetPoint("TOPLEFT", c3, "BOTTOMLEFT", 0, 0)
+	c5:SetPoint("TOPLEFT", c6, "BOTTOMLEFT", 0, 0)
 	local mins = track(UI.Stepper(p, "Warn when imbue < (min)", 1, 30, 1, function() return rem.imbueMinutes or 5 end,
 		function(v) rem.imbueMinutes = v end))
 	mins:SetPoint("TOPLEFT", c5, "BOTTOMLEFT", 4, -4)

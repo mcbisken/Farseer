@@ -42,6 +42,7 @@ Kopierar `Farseer\` till `C:\SPEL\World of Warcraft\_forever_\Interface\AddOns\F
 | **Varningar** (v1.7) | Prioritet: kritiskt (fear på dig, bossens fear, kick, andning) > råd (totemförslag, låg mana) > info (totem dog/går ut/utom räckhåll, purge). En info-varning kan inte dölja "TREMOR!" längre. Var varningar visas (överallt / grupp+instans / instanser / av), inget ljud för info, tyst solo (inget "DROP TOTEMS!", räckvidds- eller utgångsvarningar när du levlar). |
 | **Maelstrom** (v1.7) | Ritas av spelets egen aura-container (som ShamanForever): ikon, tid kvar, antal (guld vid 5), stackbar och markering vid 5 fungerar även i strid när stackarna är secret. `/farseer debug` visar läget. |
 | **Blinkning** (v1.7.1–1.7.4) | Maelstrom blinkar vid 5 (guldram + blixt), Stormstrike, Clearcasting och Flurry blinkar medan de är uppe. Skölden ritas av en egen aura-container: rött blinkar under en täckbild när laddningarna är nere på gränsen (även i strid). "Flash procs" stänger av blinkningen. `/farseer debug` visar "shield display". |
+| **Från andra addons** (v1.8) | Efter en genomgång av ShamanForever, ForeverTotems, TotemWatch, ShamUI m.fl.: högerklick på ett situationsset kastar Call of the Elements med just det setet även i strid (dolda `multispell`-knappar + makro), återuppliva-knapp när någon i gruppen är död (Ancestral Spirit), totemtiderna vita/gula/röda och blinkar de sista 5 s, ingen imbue-påminnelse med fiskespö, "Water Shield i grupp" (Lightning solo), uppläsning av varningar (text-till-tal), tona ned totembarerna utanför strid. |
 | **Inställningar** | Visa/dölj, skala och storlek för alla bars, lås upp/flytta, minimap-ikon, påminnelser, återställ. |
 
 Minimap-ikon: vänsterklick = inställningar, högerklick = lås upp/lås bars, mittenklick = PvE/PvP, dra = flytta ikonen.
@@ -63,7 +64,7 @@ med alla inställningskombinationer, keybind-mallar + återställning, Call of t
 secret values, påminnelser, alla UI-flikar, slashkommandon och kontroll av oavsiktliga globaler.
 `tests/tests_v11.lua` täcker v1.1 (tysk klient, HUD, totemdöd, profiler, utrustning, trainer, checklista, T0.5, BiS-jämförelse).
 `tests/tests_v12.lua` täcker v1.2 (procs, mana, purge, casts, DR, totemräckvidd, spec, click-cast, raid-totems, downranking).
-2919 kontroller, 0 fel (2026-11-24). Addonet visar all text på engelska (kommentarer i koden är på svenska).
+2968 kontroller, 0 fel (2026-11-25). Addonet visar all text på engelska (kommentarer i koden är på svenska).
 
 ## Inte verifierat i riktiga klienten än
 Testerna kör mot en mock, inte mot spelet. Saker att kolla första gången i spelet:
@@ -86,7 +87,13 @@ Testerna kör mot en mock, inte mot spelet. Saker att kolla första gången i sp
 7. v1.7: att Maelstrom-containern (`CreateFrame("AuraContainer", …, "CustomAuraContainerTemplate")`) byggs
    (`/farseer debug` → "maelstrom display: active" när buffen har synts en gång). Om den säger "unavailable"
    används den gamla vägen.
-8. v1.6:
+8. v1.8:
+   - Call i strid: att säkra knappar med `type = "multispell"` finns i Forever och att `/click` i makrot når dem
+     (med ActionButtonUseKeyDown på skickas `LeftButton 1`). `/farseer debug` → "Call with any set in combat:
+     works" efter att du högerklickat ett set i strid. "failed" = Call castar det set som redan låg i slottarna.
+   - Uppläsning: `TextToSpeech_Speak` / `C_VoiceChat.SpeakText` i Forever.
+   - Återuppliva: `UnitIsDead`/`UnitIsGhost`/`UnitHasIncomingResurrection` för gruppmedlemmar.
+9. v1.6:
    - Off-hand-imbue: att `/cast Flametongue Weapon` följt av `/use 17` lägger imbuen på off-hand, och att
      `C_PaperDollInfo.OffhandHasWeapon` finns.
    - Vapenolja: att tooltipraderna (`C_TooltipInfo`) visar "Brilliant Wizard Oil (30 min)" / "Sharpened (+8 Damage)".
