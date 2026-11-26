@@ -123,7 +123,7 @@ end
 
 local function makeTab(parent, i, t)
 	local b = CreateFrame("Button", nil, parent)
-	b:SetSize(SIDE - 16, 26)
+	b:SetSize(SIDE - 16, 24)
 	b.sel = b:CreateTexture(nil, "BACKGROUND")
 	b.sel:SetAllPoints()
 	b.sel:SetColorTexture(C.accent[1], C.accent[2], C.accent[3], 0.14)
@@ -244,19 +244,19 @@ local function build()
 			local g = side:CreateFontString(nil, "OVERLAY", T.Font("FarseerFontGroup"))
 			g:SetPoint("TOPLEFT", side, "TOPLEFT", 20, y - 6)
 			g:SetText(string.upper(row.group))
-			y = y - 22
+			y = y - 20
 		else
 			local b = makeTab(side, row.index, tabs[row.index])
 			b:SetPoint("TOPLEFT", side, "TOPLEFT", 8, y)
-			y = y - 27
+			y = y - 25
 		end
 	end
 
 	-- Fot i sidomenyn
 	local foot = side:CreateFontString(nil, "OVERLAY", T.Font("FarseerFontGroup"))
-	foot:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", 20, 12)
+	foot:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", 20, 10)
 	foot:SetJustifyH("LEFT")
-	foot:SetText("/farseer kb  ·  /farseer setup\n/farseer report")
+	foot:SetText("/farseer  ·  kb  ·  setup  ·  report")
 
 	-- Flikarnas yta
 	main.body = CreateFrame("Frame", nil, main)

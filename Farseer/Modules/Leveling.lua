@@ -52,6 +52,8 @@ function LV:WarnReagents()
 		if r.low and not warned[r.def.item] then
 			warned[r.def.item] = true
 			ns.print("|cffff8040low on %s|r (%d) — needed for %s.", r.def.name, r.count or 0, r.def.spell)
+		elseif not r.low and type(r.count) == "number" then
+			warned[r.def.item] = nil   -- fyllt på: varna igen nästa gång det tar slut
 		end
 	end
 end

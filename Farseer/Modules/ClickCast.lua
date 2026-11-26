@@ -73,6 +73,14 @@ function CC:Current()
 	return plainList(ns.get(C_ClickBindings.GetProfileInfo))
 end
 
+-- Som Current, men nil när profilen inte går att läsa (då får inget skrivas över)
+function CC:Read()
+	if not self:Available() then return nil end
+	local list = ns.get(C_ClickBindings.GetProfileInfo)
+	if type(list) ~= "table" then return nil end
+	return plainList(list)
+end
+
 -- Vad mallen blir: lista ClickBindingInfo, saknade spells, modifierare som inte gick att översätta
 function CC:Build(t)
 	local out, missing, badMods = {}, {}, {}
@@ -103,7 +111,8 @@ function CC:Apply(id)
 	if not t then return false, 0, {}, "unknown template" end
 	local add, missing, badMods = self:Build(t)
 	if #add == 0 then return false, 0, missing, "nothing to add (no known spells)" end
-	local current = self:Current()
+	local current = self:Read()
+	if not current then return false, 0, missing, "couldn't read your current click casting (nothing changed)" end
 	if not ns.char.clickBackup then ns.char.clickBackup = ns.copy(current) end
 	local taken = {}
 	for _, b in ipairs(add) do taken[b.button .. ":" .. b.modifiers] = true end
@@ -135,6 +144,16 @@ function CC:Restore()
 	if not self:Available() then return false, "the client doesn't have Click Casting" end
 	local ok, err = pcall(C_ClickBindings.SetProfileByInfo, backup)
 	if not ok then return false, tostring(err) end
+	-- Läs tillbaka innan backupen kastas: gick det inte är den det enda som finns kvar
+	if #backup > 0 then
+		local after, found = self:Read() or {}, 0
+		for _, b in ipairs(backup) do
+			for _, a in ipairs(after) do
+				if a.button == b.button and a.modifiers == b.modifiers and a.actionID == b.actionID then found = found + 1 break end
+			end
+		end
+		if found == 0 then return false, "the client didn't save the change (backup kept)" end
+	end
 	ns.char.clickBackup = nil
 	return true
 end

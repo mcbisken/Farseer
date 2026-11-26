@@ -83,8 +83,13 @@ local function build(p)
 		local b = UI.Button(p, preset.name, 220, 24, function()
 			sel = preset.id
 			-- Mallar som är gjorda för ett lager föreslår det (går att ändra)
+			-- Förslaget gäller bara så länge mallen är vald: en annan mall tar bort det igen
 			local o = BE:Options()
-			if preset.layer and o.mod == "" then o.mod = preset.layer; o.keep = true end
+			if preset.layer and o.mod == "" then
+				o.mod, o.keep, o.suggested = preset.layer, true, preset.id
+			elseif not preset.layer and o.suggested then
+				o.mod, o.keep, o.suggested = "", false, nil
+			end
 			refreshDetails()
 		end)
 		b.id = preset.id
@@ -115,10 +120,10 @@ local function build(p)
 		local items = {}
 		for _, m in ipairs(BE.LAYERS) do table.insert(items, { text = LAYER_TEXT[m], value = m }) end
 		return items
-	end, function(v) BE:Options().mod = v; refreshDetails() end)
+	end, function(v) BE:Options().mod = v; BE:Options().suggested = nil; refreshDetails() end)
 	layerDrop:SetPoint("LEFT", ll, "RIGHT", 6, 0)
 	keepCheck = UI.Check(p, "Keep my keybinds (only bind free keys)", function() return BE:Options().keep end,
-		function(v) BE:Options().keep = v; refreshDetails() end,
+		function(v) BE:Options().keep = v; BE:Options().suggested = nil; refreshDetails() end,
 		"Keys that already do something (not Farseer) are left alone. Keys Farseer bound earlier may be updated.")
 	keepCheck:SetPoint("LEFT", layerDrop, "RIGHT", 12, 0)
 	local hk = UI.Label(p, "Key", "GameFontNormalSmall")
@@ -166,9 +171,9 @@ local function build(p)
 		ns.print("%d macros created/updated (no keybinds changed).", n)
 		refreshDetails()
 	end, "Creates the template's macros without touching your keybinds — drag them to your bars yourself.")
-	mk:SetPoint("LEFT", restore, "RIGHT", 8, 0)
+	mk:SetPoint("TOPLEFT", apply, "BOTTOMLEFT", 0, -6)
 	backupText = UI.Label(p, "", "GameFontHighlightSmall")
-	backupText:SetPoint("TOPLEFT", apply, "BOTTOMLEFT", 0, -8)
+	backupText:SetPoint("TOPLEFT", mk, "BOTTOMLEFT", 0, -8)
 	backupText:SetWidth(580)
 end
 

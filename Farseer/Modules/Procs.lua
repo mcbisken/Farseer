@@ -10,7 +10,8 @@ local PC = ns.module("Procs")
 
 local frame, wfText, castBar, drText
 local icons = {}
-local mwLast, mwInstance, shieldInstance
+local mwLast, mwInstance
+local shieldInstance = {}   -- [sköld] = auraInstanceID (en per sköld: annars hittar Lightning Shield-uppslaget Water Shield)
 local wf = { count = 0, shownAt = -100, at = -100 }
 local manaArmed = true
 local purgeWarned = {}
@@ -58,6 +59,11 @@ local WB_LOW = 60        -- Water Breathing: varna när mindre än så här är 
 
 local function cfg() return ns.char.procs end
 
+-- Egen klocka när cooldownen är secret (i strid): senaste lyckade cast + spellens cooldown
+local OWN_CD = { ["Mana Tide Totem"] = 300, ["Grounding Totem"] = 15 }
+local ownCast = {}
+PC.OWN_CD = OWN_CD
+
 ---------------------------------------------------------------------------------------------------
 -- Läsning
 ---------------------------------------------------------------------------------------------------
@@ -83,10 +89,14 @@ local function playerAura(ids, name, instanceID)
 end
 PC.playerAura = playerAura
 
+-- Finns värdet? Secret räknas som "finns" och jämförs aldrig med nil.
+local function present(v) return ns.isSecret(v) or v ~= nil end
+PC.present = present
+
 -- Stacks/laddningar: tal, eller nil + det råa secret-värdet (kan bara visas, inte jämföras)
 local function applications(a)
-	if a == nil then return 0 end
 	if ns.isSecret(a) then return nil end
+	if a == nil then return 0 end
 	local ok, v = pcall(function() return a.applications end)
 	if not ok then return nil end
 	if ns.isSecret(v) then return nil, v end
@@ -291,7 +301,7 @@ local function showCount(fs, n, raw, low)
 	if n then
 		fs:SetText(n > 0 and tostring(n) or "")
 		if low then fs:SetTextColor(1, 0.25, 0.25) else fs:SetTextColor(1, 1, 1) end
-	elseif raw ~= nil then
+	elseif present(raw) then
 		if not pcall(fs.SetText, fs, raw) then fs:SetText("?") end
 		fs:SetTextColor(1, 1, 1)
 	else
@@ -305,7 +315,7 @@ end
 function PC:Maelstrom()
 	local a = playerAura(ns.MAELSTROM_BUFF, "Maelstrom Weapon", mwInstance)
 	local inst = instanceOf(a)
-	if inst then mwInstance = inst elseif a == nil then mwInstance = nil end
+	if inst then mwInstance = inst elseif not present(a) then mwInstance = nil end
 	local n, raw = applications(a)
 	return n, raw, a
 end
@@ -314,7 +324,7 @@ end
 -- ingen ikon. Ordning: buffens egen ikon -> kända spell-ID:n -> namnet -> ikonens fil.
 local MW_ICON = "Interface\\Icons\\Spell_Shaman_MaelstromWeapon"
 function PC:MaelstromIcon(a)
-	if a ~= nil and not ns.isSecret(a) then
+	if not ns.isSecret(a) and a ~= nil then
 		local ok, ic = pcall(function() return a.icon end)
 		if ok and ic ~= nil then return ic end
 	end
@@ -573,7 +583,9 @@ function PC:UpdateMaelstrom()
 	f.sensor:Show()
 	if f.sensor.pulse then f.sensor.pulse:Set(flashOn()) end
 	showCount(f.count, n, raw)
-	pcall(f.sensor.SetValue, f.sensor, n or raw or 0)
+	local v = n
+	if v == nil then v = present(raw) and raw or 0 end
+	pcall(f.sensor.SetValue, f.sensor, v)
 	if n then
 		f.icon:SetDesaturated(n == 0)
 		if n >= max then
@@ -596,7 +608,7 @@ end
 ---------------------------------------------------------------------------------------------------
 -- Ikonen: buffens egen (kan vara secret, SetTexture tar emot den) -> spell-ID:n -> namnet -> filen
 function PC:ProcIcon(def, a)
-	if a ~= nil and not ns.isSecret(a) then
+	if not ns.isSecret(a) and a ~= nil then
 		local ok, ic = pcall(function() return a.icon end)
 		if ok and (ns.isSecret(ic) or ic ~= nil) then return ic end
 	end
@@ -666,7 +678,7 @@ function PC:UpdateProc(def)
 	end
 	-- Att auran finns går att se även när den är secret (uppslaget ger ett secret-värde, inte nil)
 	local a = playerAura(def.ids, def.name, procInstance[def.key])
-	if a ~= nil then
+	if present(a) then
 		procInstance[def.key] = instanceOf(a) or procInstance[def.key]
 		showProc(self, def, f, a)
 		return
@@ -776,6 +788,7 @@ end
 function PC:OnPlayerCast(spellID)
 	if type(spellID) ~= "number" or ns.isSecret(spellID) then return end
 	local name = ns.canon(ns.get(C_Spell.GetSpellName, spellID))
+	if name and OWN_CD[name] then ownCast[name] = GetTime() end
 	if isStormstrike(spellID, name) then self:StormstrikeCast() return end
 	local def = name and CD_TIMERS[name]
 	if not def or not cfg().cdTimers then return end
@@ -1136,9 +1149,9 @@ end
 function PC:Shield()
 	for _, s in ipairs(ns.SHIELDS) do
 		if ns.Spellbook:Knows(s) then
-			local a = playerAura(ns.SHIELD_IDS[s], s, shieldInstance)
-			if a ~= nil then
-				shieldInstance = instanceOf(a) or shieldInstance
+			local a = playerAura(ns.SHIELD_IDS[s], s, shieldInstance[s])
+			if present(a) then
+				shieldInstance[s] = instanceOf(a) or shieldInstance[s]
 				local n, raw = applications(a)
 				-- 0 stacks på en aura som finns = klienten räknar inte laddningar: visa skölden utan siffra
 				if n == 0 then return s, nil, nil end
@@ -1150,7 +1163,7 @@ function PC:Shield()
 			end
 		end
 	end
-	shieldInstance = nil
+	wipe(shieldInstance)
 	return nil
 end
 
@@ -1250,9 +1263,16 @@ local function ready(spell)
 	local id = ns.Spellbook:ID(spell)
 	local info = id and C_Spell and C_Spell.GetSpellCooldown and ns.get(C_Spell.GetSpellCooldown, id)
 	local dur = ns.field(info, "duration")
-	if dur == nil then return true end   -- okänt: föreslå ändå
+	if dur == nil then
+		-- Okänt: Earth Shock via HUD:ens shock-klocka (delas av alla shocks), annars egen klocka
+		if spell == "Earth Shock" and ns.HUD and ns.HUD.Ready then return ns.HUD:Ready("Earth Shock") end
+		local cd, at = OWN_CD[spell], ownCast[spell]
+		if cd and at then return GetTime() - at >= cd end
+		return true
+	end
 	return dur <= 1.5
 end
+PC.Ready = function(_, spell) return ready(spell) end
 
 -- Bästa förslaget: spell, text
 function PC:ManaAdvice()
@@ -1307,7 +1327,8 @@ function PC:Purgeable(unit)
 		local ok, a = pcall(fn, unit, i, "HELPFUL")
 		if not ok or ns.isSecret(a) then return nil end
 		if a == nil then break end
-		local disp = ns.field(a, "dispelName")
+		local okd, disp = pcall(function() return a.dispelName end)
+		if not okd or ns.isSecret(disp) then return nil end
 		if disp == "Magic" then
 			table.insert(out, { name = ns.field(a, "name"), icon = ns.field(a, "icon"), id = ns.field(a, "spellId") })
 		end
@@ -1325,7 +1346,7 @@ function PC:UpdatePurge()
 	f.icon:SetTexture(list[1].icon or ns.spellIcon("Purge"))
 	f.count:SetText(#list > 1 and tostring(#list) or "")
 	f.count:SetTextColor(1, 1, 1)
-	f.glow:On()
+	if flashOn() then f.glow:On() else f.glow:Off() end
 	setShown(f, true)
 	if cfg().purgeAlertPvp and ns.Bars:Mode() == "PVP" then
 		local guid = ns.get(UnitGUID, "target") or "target"
@@ -1372,6 +1393,17 @@ function PC:OnUnitCast(event, unit)
 			elseif ready("Grounding Totem") then
 				ns.Alert:Flash("cast-" .. unit, "Grounding Totem", "GROUND IT! " .. what,
 					"Grounding Totem absorbs a spell aimed at you.", { 1, 0.35, 0.2 }, 1.5, "critical")
+			end
+		end
+	elseif event == "UNIT_SPELLCAST_DELAYED" or event == "UNIT_SPELLCAST_CHANNEL_UPDATE" then
+		-- Pushback: ny sluttid (annars försvinner baren medan fienden fortfarande castar)
+		local old = casts[unit]
+		if old then
+			local c = self:ReadCast(unit)
+			if c then
+				c.unit = unit
+				if c.notInt == nil then c.notInt = old.notInt end
+				casts[unit] = c
 			end
 		end
 	elseif event == "UNIT_SPELLCAST_NOT_INTERRUPTIBLE" then
@@ -1463,6 +1495,7 @@ end
 function PC:Diminish(unit)
 	local key = unitKey(unit)
 	local list, now = {}, GetTime()
+	if dr[key] and next(dr[key]) == nil then dr[key] = nil end
 	for cat, d in pairs(dr[key] or {}) do
 		local left = d.start + d.dur - now
 		if left > 0 then
@@ -1522,7 +1555,10 @@ function PC:UpdateFast()
 end
 
 function PC:Update()
-	if not frame or not frame:IsShown() then return end
+	if not frame or not frame:IsShown() then
+		if ns.Reminders and ns.Reminders.SetShieldCharges then ns.Reminders:SetShieldCharges(nil) end
+		return
+	end
 	self:UpdateMaelstrom()
 	self:UpdateProcs()
 	self:RefineTimers()
@@ -1565,7 +1601,8 @@ function PC:OnShamanLogin()
 	self:Layout()
 	for _, e in ipairs({ "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_CHANNEL_START",
 		"UNIT_SPELLCAST_CHANNEL_STOP", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_FAILED",
-		"UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_INTERRUPTIBLE", "UNIT_SPELLCAST_NOT_INTERRUPTIBLE" }) do
+		"UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_INTERRUPTIBLE", "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
+		"UNIT_SPELLCAST_DELAYED", "UNIT_SPELLCAST_CHANNEL_UPDATE" }) do
 		pcall(castFrame.RegisterUnitEvent, castFrame, e, "target", "focus")
 	end
 	pcall(playerCastFrame.RegisterUnitEvent, playerCastFrame, "UNIT_SPELLCAST_SUCCEEDED", "player")
@@ -1573,6 +1610,8 @@ function PC:OnShamanLogin()
 	ns.on("MIRROR_TIMER_STOP", function(_, timer) PC:OnMirrorStop(timer) end)
 	ns.on("PLAYER_TARGET_CHANGED", function()
 		casts.target = nil
+		-- Purge-ikonen gällde det gamla targetet (i strid kan det nya ofta inte läsas: visa inget hellre än fel)
+		if icons.purge then icons.purge.buffs = nil; setShown(icons.purge, false) end
 		-- Stormstrike-debuffen sitter på det gamla targetet
 		if ssCast then
 			ssCast = nil

@@ -24,7 +24,14 @@ function KM:Candidates()
 	return list
 end
 
-local function commandFor(b, mouse) return "CLICK " .. b:GetName() .. ":" .. (mouse or "LeftButton") end
+-- Totemtidernas knappar gör bara något på högerklick (förstör totemet): tangenten binds till det
+local function mouseFor(b)
+	local name = b and b:GetName() or ""
+	if name:find("^FarseerTotem%u+$") then return "RightButton" end
+	return "LeftButton"
+end
+KM.MouseFor = mouseFor
+local function commandFor(b, mouse) return "CLICK " .. b:GetName() .. ":" .. (mouse or mouseFor(b)) end
 KM.CommandFor = commandFor
 
 local function bindingSet()
@@ -49,6 +56,7 @@ end
 -- Bind tangenten till knappen. Knappens gamla tangent tas bort; det som låg på tangenten sparas.
 function KM:Bind(b, key, mouse)
 	if InCombatLockdown() or not (b and key) then return false end
+	ns.BindingEngine:WarnAccountWide()
 	local cmd = commandFor(b, mouse)
 	local backup = ns.char.bindBackup
 	local old = ns.get(GetBindingAction, key)
@@ -63,8 +71,12 @@ function KM:Bind(b, key, mouse)
 			end
 		end
 	end
-	local ok = pcall(SetBindingClick, key, b:GetName(), mouse or "LeftButton")
-	if not ok then ok = pcall(SetBinding, key, cmd) end
+	local ok, res = pcall(SetBindingClick, key, b:GetName(), mouse or mouseFor(b))
+	ok = ok and res ~= false
+	if not ok then
+		ok, res = pcall(SetBinding, key, cmd)
+		ok = ok and res ~= false
+	end
 	pcall(SaveBindings, bindingSet())
 	ns.fire("BINDINGS_CHANGED")
 	return ok
@@ -72,13 +84,19 @@ end
 
 function KM:Clear(b)
 	if InCombatLockdown() or not b then return false end
-	local cmd = commandFor(b)
 	local backup = ns.char.bindBackup
-	for _ = 1, 4 do
-		local prev = ns.get(GetBindingKey, cmd)
-		if type(prev) ~= "string" then break end
-		if backup[prev] == nil then backup[prev] = cmd end
-		pcall(SetBinding, prev)
+	-- Båda musknapparna (mallarna binder också högerklick, t.ex. hela setet via Call)
+	for _, mouse in ipairs({ "LeftButton", "RightButton" }) do
+		local cmd = commandFor(b, mouse)
+		local okKeys, k1, k2, k3, k4 = ns.getAll(GetBindingKey, cmd)
+		if okKeys then
+			for _, prev in ipairs({ k1, k2, k3, k4 }) do
+				if type(prev) == "string" then
+					if backup[prev] == nil then backup[prev] = cmd end
+					pcall(SetBinding, prev)
+				end
+			end
+		end
 	end
 	pcall(SaveBindings, bindingSet())
 	ns.fire("BINDINGS_CHANGED")

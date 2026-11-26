@@ -270,9 +270,14 @@ end
 ---------------------------------------------------------------------------------------------------
 -- Stegare: Etikett   [ – ]  värde  [ + ]
 ---------------------------------------------------------------------------------------------------
-function UI.Stepper(parent, label, min, max, step, get, set, fmt)
+function UI.Stepper(parent, label, min, max, step, get, set, fmt, tip)
 	local f = CreateFrame("Frame", nil, parent)
 	f:SetSize(260, 24)
+	if tip then
+		f:EnableMouse(true)
+		f:SetScript("OnEnter", function(self) tipOn(self, label, tip) end)
+		f:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	end
 	local l = UI.Label(f, label)
 	l:SetPoint("LEFT", 0, 0)
 	l:SetWidth(150)
@@ -314,6 +319,21 @@ local menu
 local function hideMenu() if menu then menu:Hide() end end
 UI.HideMenu = hideMenu
 
+-- Medan en meny är öppen ligger huvudfönstret inte i UISpecialFrames: Escape stänger då bara menyn
+-- (CloseSpecialWindows stänger annars alla öppna ramar i listan på en gång)
+local held
+function UI.HoldEscape(on)
+	if not UISpecialFrames then return end
+	if on and not held then
+		for i = #UISpecialFrames, 1, -1 do
+			if UISpecialFrames[i] == "FarseerOptions" then table.remove(UISpecialFrames, i); held = true end
+		end
+	elseif not on and held then
+		held = nil
+		table.insert(UISpecialFrames, "FarseerOptions")
+	end
+end
+
 function UI.Menu(anchor, items, onPick)
 	if not menu then
 		menu = CreateFrame("Frame", "FarseerMenu", UIParent, "BackdropTemplate")
@@ -323,7 +343,8 @@ function UI.Menu(anchor, items, onPick)
 		T.Shadow(menu, 4)
 		menu.rows = {}
 		menu:EnableMouse(true)
-		menu:SetScript("OnHide", function(self) self.anchor = nil end)
+		menu:SetScript("OnShow", function() UI.HoldEscape(true) end)
+		menu:SetScript("OnHide", function(self) self.anchor = nil; UI.HoldEscape(false) end)
 		local closer = CreateFrame("Button", nil, menu)
 		closer:SetAllPoints(UIParent)
 		closer:SetFrameStrata("FULLSCREEN")
@@ -338,7 +359,7 @@ function UI.Menu(anchor, items, onPick)
 	if menu:IsShown() and menu.anchor == anchor then hideMenu() return end
 	for _, r in ipairs(menu.rows) do r:Hide() end
 	local rowH, width = 22, 196
-	local maxRows = 24
+	local maxRows = 26
 	local cols = math.ceil(#items / maxRows)
 	for i, it in ipairs(items) do
 		local r = menu.rows[i]

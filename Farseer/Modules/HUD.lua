@@ -353,12 +353,12 @@ function HU:ShowFlurry()
 	local def
 	for _, d in ipairs(PC.PROCS or {}) do if d.key == "flurry" then def = d end end
 	local a = def and PC.playerAura(def.ids, def.name)
-	if a == nil then fs:SetText("") return end
+	if not PC.present(a) then fs:SetText("") return end
 	local n, raw = PC.applications(a)
 	if n and n > 0 then
 		fs:SetText("Flurry " .. n)
-	elseif raw ~= nil then
-		if not pcall(fs.SetText, fs, raw) then fs:SetText("Flurry") end
+	elseif PC.present(raw) then
+		if not pcall(fs.SetFormattedText, fs, "Flurry %d", raw) and not pcall(fs.SetText, fs, raw) then fs:SetText("Flurry") end
 	else
 		fs:SetText("Flurry")
 	end

@@ -78,7 +78,7 @@ local function build(p)
 	copy:SetPoint("LEFT", send, "RIGHT", 6, 0)
 	local load = UI.Button(p, "Put my set in Call", 160, 22, function()
 		local ok, err = ns.RaidTotems:LoadMine()
-		if ok then say("Your set is now in Call of the Elements.") else say(tostring(err), true) end
+		if ok then say("Your set is now in " .. tostring(ns.Bars:CallSpell() or "Call of the Elements") .. ".") else say(tostring(err), true) end
 	end, "Writes your suggested set to the Call spell you chose on the Situations tab.")
 	load:SetPoint("LEFT", copy, "RIGHT", 6, 0)
 	status = UI.Label(p, "", "GameFontHighlight")

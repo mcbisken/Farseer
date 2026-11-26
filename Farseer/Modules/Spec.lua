@@ -64,7 +64,7 @@ function SP:Check(quiet)
 	local profile = not first and c.profiles[spec]
 	if profile and profile ~= "" then
 		if ns.db.profiles[profile] then
-			local ok, err = ns.Profiles:Load(profile)
+			local ok, err = ns.Profiles:Load(profile, { charOnly = true })
 			table.insert(did, ok and ("profile \"" .. profile .. "\" loaded") or ("profile could not be loaded: " .. tostring(err)))
 		else
 			table.insert(did, "profile \"" .. profile .. "\" no longer exists")

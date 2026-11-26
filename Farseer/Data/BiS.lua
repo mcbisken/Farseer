@@ -47,7 +47,7 @@ ns.BIS = {
         { slot = "WRIST", name = "Bindings of The Five Thunders", id = 227001, source = "quest", where = T05 .. " - An Earnest Proposition", chance = nil,
           alt = { name = "Dryad's Wrist Bindings", id = 19595, source = "reputation", where = "Warsong Gulch - Warsong Outriders / Silverwing Sentinels, Exalted" }, verified = true, url = CC_ELE },
         { slot = "HANDS", name = "Gauntlets of The Five Thunders", id = 227006, source = "quest", where = T05 .. " - Just Compensation", chance = nil,
-          alt = { name = "Storm Gauntlets", id = 12632, source = "crafted", where = "Leatherworking (BoE)" }, verified = true, url = CC_ELE },
+          alt = { name = "Storm Gauntlets", id = 12632, source = "crafted", where = "Blacksmithing (BoE)" }, verified = true, url = CC_ELE },
         { slot = "WAIST", name = "Belt of the Archmage", id = 18405, source = "crafted", where = "Tailoring (pattern source in Forever unconfirmed by guide)", chance = nil,
           alt = { name = "Cord of The Five Thunders", id = 227008, source = "quest", where = T05 .. " - Just Compensation (conquestcapped 'realistic' pick)" }, verified = true, url = CC_ELE },
         { slot = "LEGS", name = "Ironfeather Leggings", id = 252486, source = "crafted", where = "Leatherworking (300)", chance = nil,

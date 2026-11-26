@@ -179,21 +179,33 @@ local function applyInto(dst, src, defaults)
 	end
 end
 
-function PR:Apply(p)
+-- opts.charOnly: bara karaktärens inställningar (automatiskt vid spec-byte). Kontots listor (egna makron,
+-- fear-mobs, bossregler) byts då inte ut, så det man lagt till efter att profilen sparades finns kvar.
+function PR:Apply(p, opts)
 	if type(p) ~= "table" or type(p.char) ~= "table" then return false, "not a Farseer profile" end
 	if InCombatLockdown() then return false, "can't switch profiles in combat" end
 	for _, k in ipairs(self.CHAR_KEYS) do
 		local v, d = p.char[k], ns.DEFAULTS.char[k]
 		if v ~= nil and (d == nil or type(v) == type(d)) then
-			-- In i befintliga tabeller: flikar och ramar har referenser till dem
-			if type(v) == "table" and type(ns.char[k]) == "table" then ns.assign(ns.char[k], v) else ns.char[k] = ns.copy(v) end
+			-- In i befintliga tabeller: flikar och ramar har referenser till dem. Det profilen saknar (t.ex. en
+			-- bar som kom i en senare version) fylls i från standardvärdena först, så att assign inte tar bort
+			-- tabeller som ramarna håller referenser till.
+			if type(v) == "table" and type(ns.char[k]) == "table" then
+				local incoming = ns.copy(v)
+				if type(d) == "table" then ns.merge(incoming, d) end
+				ns.assign(ns.char[k], incoming)
+			else
+				ns.char[k] = ns.copy(v)
+			end
 		end
 	end
 	ns.merge(ns.char, ns.DEFAULTS.char)
 	applyInto(ns.db.macros, p.macros, ns.DEFAULTS.account.macros)
-	for _, k in ipairs({ "custom", "fearMobs", "bossRules" }) do
-		if type(p[k]) == "table" then
-			if type(ns.db[k]) == "table" then ns.assign(ns.db[k], p[k]) else ns.db[k] = ns.copy(p[k]) end
+	if not (opts and opts.charOnly) then
+		for _, k in ipairs({ "custom", "fearMobs", "bossRules" }) do
+			if type(p[k]) == "table" then
+				if type(ns.db[k]) == "table" then ns.assign(ns.db[k], p[k]) else ns.db[k] = ns.copy(p[k]) end
+			end
 		end
 	end
 	ns.Bars:OnLoad()
@@ -202,6 +214,8 @@ function PR:Apply(p)
 	ns.fire("PROFILE_LOADED")
 	if ns.Bars.Refresh and ns.isShaman then ns.Bars:Refresh() end
 	if ns.Reminders.Refresh and ns.isShaman then ns.Reminders:Refresh() end
+	-- Makroinställningarna (mouseover, focus, rangs) till de makron som redan finns
+	if ns.MacroEngine.RefreshExisting then pcall(ns.MacroEngine.RefreshExisting, ns.MacroEngine, true) end
 	return true
 end
 
@@ -222,10 +236,10 @@ function PR:Save(name)
 	return true
 end
 
-function PR:Load(name)
+function PR:Load(name, opts)
 	local p = ns.db.profiles[name]
 	if not p then return false, "no profile named " .. tostring(name) end
-	local ok, err = self:Apply(p)
+	local ok, err = self:Apply(p, opts)
 	if ok then ns.char.profile = name end
 	return ok, err
 end

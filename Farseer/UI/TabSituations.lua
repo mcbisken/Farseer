@@ -68,7 +68,7 @@ local function makeRow(i)
 	end)
 	r.name:SetMaxLetters(14)
 	r.name:SetPoint("LEFT", 54, 8)
-	r.name:SetScript("OnEditFocusLost", function(self)
+	r.name:HookScript("OnEditFocusLost", function(self)
 		local s = list()[i]
 		if s and ns.trim(self:GetText()) ~= "" and ns.trim(self:GetText()) ~= s.name then
 			s.name = ns.trim(self:GetText()); apply(); refresh()
@@ -79,7 +79,7 @@ local function makeRow(i)
 		if s then s.desc = text end
 	end)
 	r.desc:SetPoint("LEFT", 54, -9)
-	r.desc:SetScript("OnEditFocusLost", function(self)
+	r.desc:HookScript("OnEditFocusLost", function(self)
 		local s = list()[i]
 		if s then s.desc = self:GetText() end
 	end)
@@ -144,7 +144,7 @@ function refresh()
 		local s = l[i]
 		if s then
 			r:ClearAllPoints()
-			r:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -78 - (i - 1) * ROW_H)
+			r:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -102 - (i - 1) * ROW_H)
 			r.name:SetText(s.name or "")
 			r.desc:SetText(s.desc or "")
 			for d = 1, 4 do r.drops[d]:Refresh() end
@@ -214,8 +214,8 @@ local function build(panel)
 		function(v) ns.char.seqReset = v; apply() end)
 	resetStep:SetPoint("TOPLEFT", h, "BOTTOMLEFT", 0, -12)
 	info = UI.Label(p, "", "GameFontHighlightSmall")
-	info:SetPoint("LEFT", resetStep, "RIGHT", 10, 0)
-	info:SetWidth(600)
+	info:SetPoint("TOPLEFT", resetStep, "BOTTOMLEFT", 0, -4)
+	info:SetWidth(UI.WIDTH - 10)
 
 	local add = UI.Button(p, "+ New situation", 140, 24, function()
 		local l = list()

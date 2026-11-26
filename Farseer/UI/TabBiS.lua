@@ -91,6 +91,7 @@ local function makeRow(i)
 	r.slot = UI.Label(r, "", "GameFontNormalSmall")
 	r.slot:SetPoint("TOPLEFT", 6, -8)
 	r.slot:SetWidth(84)
+	if r.slot.SetWordWrap then r.slot:SetWordWrap(false) end
 	r.status = UI.Label(r, "", "GameFontHighlightSmall")
 	r.status:SetPoint("TOPLEFT", r.slot, "BOTTOMLEFT", 0, -4)
 	r.status:SetWidth(84)

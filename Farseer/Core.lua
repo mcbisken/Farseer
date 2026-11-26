@@ -84,7 +84,7 @@ local function report(err)
 	err = tostring(err)
 	if seen[err] then return end
 	seen[err] = true
-	table.insert(ns.errors, err)
+	if #ns.errors < 50 then table.insert(ns.errors, err) end
 	reported = reported + 1
 	if reported > 10 then
 		if reported == 11 then ns.print("many errors — not showing more. /farseer debug lists them.") end
@@ -281,8 +281,15 @@ function ns.makeMovable(frame, cfg, label)
 		frame:StartMoving()
 	end)
 	h:SetScript("OnDragStop", function()
+		-- Draget startade inte (t.ex. i strid): rör inte ramen, bars med säkra knappar är låsta i strid
+		if not frame.fsDragging then return end
 		frame:StopMovingOrSizing()
 		frame.fsDragging = nil
+		if InCombatLockdown() then
+			local p, _, rp, x, y = frame:GetPoint()
+			cfg.point, cfg.relPoint, cfg.x, cfg.y = p, rp, x, y
+			return
+		end
 		-- Snäpp mot rutnätet (håll Shift för fri placering)
 		if ns.Grid:SnapOn() and not (IsShiftKeyDown and IsShiftKeyDown()) and ns.Grid:Snap(frame, cfg) then return end
 		local p, _, rp, x, y = frame:GetPoint()

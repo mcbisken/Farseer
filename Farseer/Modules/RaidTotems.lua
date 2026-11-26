@@ -1,6 +1,7 @@
 -- Totemfördelning mellan shamans i gruppen/raiden. Addons får inte skicka egna meddelanden i
 -- instanser, så Farseer räknar ut ett förslag som du kopierar eller skickar i chatten med ett klick.
--- Totems når bara din egen grupp (party), så varje shaman får ett set efter sin grupps sammansättning.
+-- Varje shaman får ett set efter sin grupps sammansättning (Mana Spring, Healing Stream, Stoneskin m.fl.
+-- når bara den egna gruppen; se Data/Situations.lua för vilka som når hela raiden i Forever).
 
 local _, ns = ...
 local RT = ns.module("RaidTotems")
@@ -53,7 +54,8 @@ function RT:Plan(roster)
 		local g = groups[p.group] or { melee = 0, caster = 0, shamans = {} }
 		groups[p.group] = g
 		if p.class == "SHAMAN" then table.insert(g.shamans, p) end
-		if ns.MELEE_CLASSES[p.class] or p.class == "HUNTER" then g.melee = g.melee + 1 end
+		-- Jägare räknas inte som melee: Windfury gör inget för distansvapen (samma som situationen "Caster")
+		if ns.MELEE_CLASSES[p.class] then g.melee = g.melee + 1 end
 		if ns.CASTER_CLASSES[p.class] then g.caster = g.caster + 1 end
 	end
 	local plan = {}

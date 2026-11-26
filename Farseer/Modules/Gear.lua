@@ -96,7 +96,10 @@ function GE:Layout()
 		b:SetPoint("LEFT", bar, "LEFT", (i - 1) * (size + gap), 0)
 		b.icon:SetTexture(s.icon)
 		b.mark:SetShown(s.equipped)
-		b.label:SetText(s.name:sub(1, 8))
+		-- 8 byte, men aldrig mitt i ett tecken (å, ä, ö är två byte)
+		local short = s.name:sub(1, 8)
+		if #s.name > 8 then short = short:gsub("[\192-\255][\128-\191]*$", "") end
+		b.label:SetText(short)
 		b:Show()
 	end
 	local n = math.min(#sets, 8)

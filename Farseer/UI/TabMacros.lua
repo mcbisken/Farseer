@@ -30,6 +30,7 @@ end
 local refreshList
 
 local function selectTemplate(t)
+	state.edited = false   -- egna ändringar i rutorna (behålls när fliken visas igen)
 	state.sel, state.customIndex = t, nil
 	local body, missing = ME:Render(t)
 	previewTitle:SetText(t.name .. (t.experimental and "  |cffffb040(experimental)|r" or ""))
@@ -48,6 +49,7 @@ end
 
 local function selectCustom(i)
 	local c = ns.db.custom[i]
+	state.edited = false
 	state.sel, state.customIndex = nil, i
 	if not c then
 		c = { name = "", body = "#showtooltip\n/cast ", perChar = ns.db.macros.perCharacter }
@@ -244,12 +246,16 @@ local function build(panel)
 	local nl = UI.Label(p, "Name:", "GameFontNormalSmall")
 	nl:SetPoint("TOPLEFT", previewTitle, "BOTTOMLEFT", 0, -10)
 	nameBox = UI.EditBox(p, 110)
+	nameBox:HookScript("OnTextChanged", function(_, user) if user then state.edited = true end end)
 	nameBox:SetMaxLetters(16)
 	nameBox:SetPoint("LEFT", nl, "RIGHT", 10, 0)
 	perCharCheck = UI.Check(p, "Character", function() return ns.db.macros.perCharacter end, function() end,
 		"Save as a character macro (otherwise an account macro).")
 	perCharCheck:SetPoint("LEFT", nameBox, "RIGHT", 6, 0)
-	preview, previewEdit = UI.MultiLine(p, 258, 190, function(text) setCounter(text) end)
+	preview, previewEdit = UI.MultiLine(p, 258, 190, function(text, user)
+		setCounter(text)
+		if user then state.edited = true end
+	end)
 	preview:SetPoint("TOPLEFT", nl, "BOTTOMLEFT", 0, -10)
 	counter = UI.Label(p, "", "GameFontHighlightSmall")
 	counter:SetPoint("TOPRIGHT", preview, "BOTTOMRIGHT", 0, -4)
@@ -306,7 +312,10 @@ end
 
 local function refresh()
 	for _, cb in ipairs(optChecks) do cb:Refresh() end
-	if state.cat == CUSTOM then
+	-- Något du skrivit i rutorna skrivs inte över bara för att fliken visas igen (zonbyte, flikbyte)
+	if state.edited then
+		refreshList()
+	elseif state.cat == CUSTOM then
 		selectCustom(state.customIndex)
 	elseif state.sel then
 		selectTemplate(state.sel)

@@ -356,7 +356,7 @@ function RE:SetShieldCharges(n, raw, low)
 	if n then
 		fs:SetText(tostring(n))
 		if low then fs:SetTextColor(1, 0.25, 0.25) else fs:SetTextColor(1, 1, 1) end
-	elseif raw ~= nil then
+	elseif ns.isSecret(raw) or raw ~= nil then
 		if not pcall(fs.SetText, fs, raw) then fs:SetText("") end
 	else
 		fs:SetText("")

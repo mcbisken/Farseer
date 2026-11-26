@@ -50,6 +50,16 @@ function RP:Lines()
 	local secret = C_Secrets and C_Secrets.ShouldAurasBeSecret and ns.get(C_Secrets.ShouldAurasBeSecret)
 	add("Auras secret now: %s, in combat: %s", tostring(secret), yn(InCombatLockdown()))
 	add("UnitInRange(party1): %s", tostring(ns.get(UnitInRange, "party1")))
+	add("Own mana readable (UnitPower): %s", yn(ns.get(UnitPower, "player", 0) ~= nil))
+	local function order(name)
+		local t = rawget(_G, name)
+		if type(t) ~= "table" then return "none" end
+		local parts = {}
+		for i = 1, 4 do parts[i] = tostring(t[i]) end
+		return table.concat(parts, ",")
+	end
+	add("Totem order: SHAMAN_TOTEM_PRIORITIES %s, TOTEM_PRIORITIES %s, used %s", order("SHAMAN_TOTEM_PRIORITIES"),
+		order("TOTEM_PRIORITIES"), table.concat(ns.Totems:SlotOrder(), ","))
 	add("Boss mods: DBM %s, BigWigs %s", yn(addonLoaded("DBM-Core")), yn(addonLoaded("BigWigs") or addonLoaded("BigWigs_Core")))
 	add("Fishing pole check (C_Item.GetItemInfoInstant): %s", yn(C_Item and C_Item.GetItemInfoInstant))
 	for slot = 1, 4 do

@@ -169,10 +169,13 @@ end
 
 function AL:Show(key, spell, title, text, color, force, prio)
 	if not frame then return false end
-	if not self:Allowed() then return false end
+	if not self:Allowed() then
+		if current then self:Hide(true) end
+		return false
+	end
 	prio = prioOf(prio) or AL.PRIO.advice
 	-- En pågående flash ersätts bara av något viktigare (rådgivarens förslag trycker inte undan en lika viktig flash)
-	if flashing() and not force and prio <= currentPrio then return false end
+	if flashing() and not force and (prio <= currentPrio or prio < AL.PRIO.critical) then return false end
 	-- En flash (force) tränger inte undan en kritisk varning som visas nu (t.ex. "TREMOR!" när du är fearad)
 	if force and current and current ~= key and currentPrio >= AL.PRIO.critical and prio < currentPrio then
 		return false
@@ -234,6 +237,7 @@ end
 
 function AL:Hide(force)
 	if flashing() and not force then return end
+	flashUntil = 0   -- en tvingad Hide avslutar också en pågående flash
 	current = nil
 	currentPrio = 0
 	if frame and ns.char.locked then frame:Hide() end

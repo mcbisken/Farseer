@@ -15,7 +15,8 @@ local SETUPS = {
 local function runSetup(s)
 	if InCombatLockdown() then ns.print("not in combat.") return end
 	for _, cat in ipairs({ s.spec, "Totems", "PvP", "Utility" }) do ns.MacroEngine:CreateCategory(cat) end
-	local n, errors = ns.BindingEngine:Apply(s.preset)
+	-- Vanliga tangenter (inte det sparade lagret från Keybinds-fliken): det som bekräftelsen lovar
+	local n, errors = ns.BindingEngine:Apply(s.preset, { mod = "", keep = false })
 	ns.print("%s setup done: %d keybinds set.%s", s.spec, n, #errors > 0 and (" Errors: " .. table.concat(errors, "; ")) or "")
 	ns.print("Undo keybinds: Keybinds tab -> Restore all keys, or /farseer restore.")
 	UI.RefreshCurrent()

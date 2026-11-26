@@ -34,11 +34,13 @@ function TO:ReadSlot(slot)
 	if not GetTotemInfo then return false end
 	local ok, have, name, start, dur = ns.getAll(GetTotemInfo, slot)
 	if not ok or have == nil then return false end
-	name = baseName(name)
-	if not have or not name or name == "" then
+	-- Tom slot bara när klienten säger det: ett totem vars namn inte går att läsa (secret) är inte borta
+	if have == false then
 		state[slot] = nil
 		return true
 	end
+	name = baseName(name)
+	if not name or name == "" then return false end
 	if start and dur and dur > 0 then
 		setSlot(slot, name, start, dur)
 		if not InCombatLockdown() then ns.char.learnedDur[name] = math.floor(dur + 0.5) end
@@ -113,8 +115,9 @@ function TO:CheckDeath(slot, prev)
 	if now - (lastCast[slot] or -100) < 1.5 then return end           -- du satte ett nytt
 	if now - lastRecall < 1.5 or now - lastTotemicCall < 1.5 or now - (destroyed[slot] or -100) < 1.5 then return end
 	if ns.get(UnitIsDeadOrGhost, "player") == true then return end
-	-- Går slotten att läsa och totemet står kvar är allt som det ska
-	if self:ReadSlot(slot) and state[slot] and state[slot].name == prev.name then return end
+	-- Går slotten att läsa och står det ett totem där är allt som det ska: samma totem, eller ett nytt
+	-- av samma element som ersatte det (bara ditt eget totem kan stå i din slot)
+	if self:ReadSlot(slot) and state[slot] then return end
 	state[slot] = nil
 	self:UpdateBar()
 	ns.fire("TOTEMS_CHANGED")
@@ -368,8 +371,19 @@ end
 -- inte i totemslot-ordning (Fire=1, Earth=2, Water=3, Air=4). Klientens egen tabell används om den finns.
 local WRATH_ORDER = { 2, 1, 3, 4 }
 function TO:SlotOrder()
-	local p = rawget(_G, "TOTEM_PRIORITIES") or rawget(_G, "SHAMAN_TOTEM_PRIORITIES")
-	if type(p) == "table" and #p == 4 then return p end
+	-- Shamanens egen ordning först (den allmänna kan vara 1,2,3,4); bara en riktig permutation av 1-4 godtas
+	for _, name in ipairs({ "SHAMAN_TOTEM_PRIORITIES", "TOTEM_PRIORITIES" }) do
+		local p = rawget(_G, name)
+		if type(p) == "table" and #p == 4 then
+			local seen, ok = {}, true
+			for i = 1, 4 do
+				local v = p[i]
+				if type(v) ~= "number" or v < 1 or v > 4 or seen[v] then ok = false break end
+				seen[v] = true
+			end
+			if ok then return p end
+		end
+	end
 	return WRATH_ORDER
 end
 
@@ -424,10 +438,9 @@ local function onCast(spellID)
 	else
 		for set, call in ipairs(ns.CALLS) do
 			if name == call then
-				for slot, totem in pairs(TO:CallSetContents(set)) do
-					setSlot(slot, totem)
-					lastCast[slot] = now
-				end
+				-- Call ersätter totems i alla slottar: inga "DIED!" för dem, även om setet inte gick att läsa
+				for slot = 1, 4 do lastCast[slot] = now end
+				for slot, totem in pairs(TO:CallSetContents(set)) do setSlot(slot, totem) end
 			end
 		end
 	end
@@ -438,7 +451,7 @@ end
 
 local castFrame = CreateFrame("Frame")
 castFrame:SetScript("OnEvent", function(_, event, unit, _, spellID)
-	if event == "UNIT_SPELLCAST_SUCCEEDED" and unit == "player" then
+	if event == "UNIT_SPELLCAST_SUCCEEDED" and not ns.isSecret(unit) and unit == "player" then
 		local ok, err = pcall(onCast, spellID)
 		if not ok then ns.report(err) end
 	end

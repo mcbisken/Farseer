@@ -63,6 +63,7 @@ local function build(p)
 		local col, row = (i - 1) % 3, math.floor((i - 1) / 3)
 		cb:SetPoint("TOPLEFT", ih, "BOTTOMLEFT", col * 150, -4 - row * 22)
 		cb.label:SetWidth(122)
+		if cb.label.SetWordWrap then cb.label:SetWordWrap(false) end
 	end
 
 	-- Höger: totemvarningar och utrustning

@@ -37,7 +37,7 @@ local function column(p, x, header, rows, track)
 			end
 			y = y - 30
 		elseif r.stepper then
-			w = track(UI.Stepper(p, r[1], r.min, r.max, r.step, r[2], r[3], r.fmt))
+			w = track(UI.Stepper(p, r[1], r.min, r.max, r.step, r[2], r[3], r.fmt, r[4]))
 			w:SetPoint("TOPLEFT", p, "TOPLEFT", x + 28, y)
 			y = y - 26
 		elseif r.label then

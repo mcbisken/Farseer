@@ -64,6 +64,7 @@ function RZ:Update()
 		end
 	else
 		button:SetAttribute("unit", nil)
+		button:SetAttribute("type", nil)   -- en bunden tangent ska inte casta på ditt target
 		button.glow:Off()
 		button:Hide()
 	end
@@ -123,9 +124,16 @@ end
 function RZ:OnShamanLogin()
 	self:Build()
 	self:Update()
-	for _, e in ipairs({ "GROUP_ROSTER_UPDATE", "UNIT_FLAGS", "UNIT_HEALTH", "INCOMING_RESURRECT_CHANGED",
-		"PLAYER_ALIVE", "PLAYER_UNGHOST", "PLAYER_DEAD" }) do
+	for _, e in ipairs({ "GROUP_ROSTER_UPDATE", "PLAYER_ALIVE", "PLAYER_UNGHOST", "PLAYER_DEAD" }) do
 		ns.on(e, function() RZ:Queue() end)
+	end
+	-- Enhetshändelser bara för gruppen (inte namnskyltar och target: de kommer flera gånger i sekunden)
+	for _, e in ipairs({ "UNIT_FLAGS", "UNIT_HEALTH", "INCOMING_RESURRECT_CHANGED" }) do
+		ns.on(e, function(_, unit)
+			if type(unit) == "string" and not ns.isSecret(unit) and (unit:find("^party%d") or unit:find("^raid%d")) then
+				RZ:Queue()
+			end
+		end)
 	end
 	ns.listen("SPELLS_CHANGED", function() RZ:Queue() end)
 	ns.listen("COMBAT_END", function() RZ:Queue() end)

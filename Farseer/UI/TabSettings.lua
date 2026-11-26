@@ -50,6 +50,7 @@ local function build(p)
 		local a = ns.DEFAULTS.account.alert
 		ns.db.alert.point, ns.db.alert.relPoint, ns.db.alert.x, ns.db.alert.y = a.point, nil, a.x, a.y
 		relayout()
+		UI.RefreshCurrent()
 		ns.print("positions reset.")
 	end)
 	pos:SetPoint("TOPLEFT", last, "BOTTOMLEFT", 0, -10)
@@ -150,7 +151,11 @@ local function build(p)
 	local dbg = UI.Button(p, "Test report", 110, 24, function() ns.Report:Show() end,
 		"Client features, test list, load and errors in one box to copy. Also /farseer report.")
 	dbg:SetPoint("TOPLEFT", dh, "BOTTOMLEFT", 0, -6)
-	local wiz = UI.Button(p, "Setup wizard", 110, 24, function() ns.Options:Hide(); ns.Setup:Show() end,
+	local wiz = UI.Button(p, "Setup wizard", 110, 24, function()
+		if InCombatLockdown() then ns.print("setup opens after combat.") return end
+		ns.Options:Hide()
+		ns.Setup:Show()
+	end,
 		"The first-time questions again: spec, keybinds, alerts, look. Nothing changes until Finish.")
 	wiz:SetPoint("LEFT", dbg, "RIGHT", 6, 0)
 	local wipeChar = UI.Button(p, "Reset character", 130, 24, function()
@@ -179,8 +184,9 @@ local function build(p)
 	local info = UI.Label(p,
 		"Secure buttons, keybinds and macros can't change in combat — Farseer applies changes when combat ends.",
 		"GameFontHighlightSmall")
-	info:SetPoint("TOPLEFT", cl, "BOTTOMLEFT", 4, -2)
-	info:SetWidth(400)
+	-- Vänster kolumn under knapparna (högra kolumnen är full)
+	info:SetPoint("TOPLEFT", pos, "BOTTOMLEFT", 0, -10)
+	info:SetWidth(420)
 end
 
 local function refresh()

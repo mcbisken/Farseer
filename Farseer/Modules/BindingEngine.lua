@@ -169,10 +169,21 @@ local function bindOne(key, b, errors)
 end
 
 -- Applicerar mallen. Returnerar antal bindningar, lista med fel, antal tangenter som lämnades orörda
+-- Kontogemensamma keybinds (set 1): ändringen gäller alla karaktärer, men backupen finns bara på den här
+function BE:AccountWide() return ns.get(GetCurrentBindingSet) == 1 end
+local warnedAccount = false
+function BE:WarnAccountWide()
+	if warnedAccount or not self:AccountWide() then return end
+	warnedAccount = true
+	ns.print("|cffffb040note:|r your keybinds are account-wide, so this changes them on all your characters. "
+		.. "Tip: Esc > Options > Keybindings > \"Character Specific Keybindings\" first. Restore works from this character.")
+end
+
 function BE:Apply(id, opts)
 	local p = byId[id]
 	if not p then return 0, { "unknown template" }, 0 end
 	if InCombatLockdown() then return 0, { "can't change keybinds in combat" }, 0 end
+	self:WarnAccountWide()
 	local backup = ns.char.bindBackup
 	local count, errors, kept = 0, {}, 0
 	for _, e in ipairs(self:Plan(id, opts)) do
@@ -192,16 +203,23 @@ end
 -- Återställer alla tangenter som Farseer har ändrat
 function BE:Restore()
 	if InCombatLockdown() then return 0, { "can't change keybinds in combat" } end
-	local n = 0
+	local n, errors, failed = 0, {}, {}
 	for key, old in pairs(ns.char.bindBackup) do
-		if old == "" then pcall(SetBinding, key) else pcall(SetBinding, key, old) end
-		n = n + 1
+		local ok, res
+		if old == "" then ok, res = pcall(SetBinding, key) else ok, res = pcall(SetBinding, key, old) end
+		if ok and res ~= false then
+			n = n + 1
+		else
+			failed[key] = old   -- behålls i backupen så att det går att försöka igen
+			table.insert(errors, key .. ": " .. tostring(res))
+		end
 	end
 	wipe(ns.char.bindBackup)
-	ns.char.lastPreset = nil
+	for k, v in pairs(failed) do ns.char.bindBackup[k] = v end
+	if not next(failed) then ns.char.lastPreset = nil end
 	pcall(SaveBindings, bindingSet())
 	ns.fire("BINDINGS_CHANGED")
-	return n, {}
+	return n, errors
 end
 
 function BE:HasBackup() return next(ns.char.bindBackup) ~= nil end

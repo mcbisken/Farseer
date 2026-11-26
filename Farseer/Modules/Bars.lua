@@ -384,6 +384,13 @@ function BA:ApplySituations()
 			end
 			b:Show()
 		else
+			-- Dold/borttagen situation: en tangent bunden till knappen ska inte lägga det gamla setet
+			b:SetAttribute("type", nil)
+			b:SetAttribute("macrotext", nil)
+			b:SetAttribute("*type2", nil)
+			b:SetAttribute("*macrotext2", nil)
+			b:SetAttribute("*spell2", nil)
+			b.combatCall = nil
 			b:Hide()
 		end
 	end
