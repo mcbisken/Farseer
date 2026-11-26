@@ -64,7 +64,9 @@ function AL:InGroupOrInstance()
 	local n = ns.get(GetNumGroupMembers) or 0
 	return type(n) == "number" and n > 0
 end
+local testing = false   -- /farseer test visas alltid, oavsett när varningar får visas
 function AL:Allowed()
+	if testing then return true end
 	local mode = ns.db.alert.mode or "always"
 	if mode == "off" then return false end
 	if mode == "instance" then return ns.get(IsInInstance) == true end
@@ -248,8 +250,15 @@ function AL:Current() return current end
 function AL:Test()
 	flashUntil = 0
 	current, currentPrio = nil, 0
-	self:Flash("test", "Tremor Totem", "TREMOR TOTEM!", "Test: this is what a warning looks like. Drag it while the addon is unlocked.",
-		{ 1, 0.6, 0.1 }, 4)
+	testing = true
+	local ok = pcall(self.Flash, self, "test", "Tremor Totem", "TREMOR TOTEM!",
+		"Test: this is what a warning looks like. Drag it while the addon is unlocked.", { 1, 0.6, 0.1 }, 4)
+	testing = false
+	local mode = ns.db.alert.mode or "always"
+	if ok and mode ~= "always" then
+		ns.print("alerts are set to show %s — the test is shown anyway.",
+			mode == "off" and "never" or mode == "group" and "in a group" or "in dungeons and raids")
+	end
 end
 
 function AL:OnShamanLogin()

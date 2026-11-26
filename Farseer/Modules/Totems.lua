@@ -7,6 +7,7 @@ local TO = ns.module("Totems")
 local state = {}   -- [slot] = { name, start, dur }
 local lastCast, destroyed = {}, {}   -- [slot] = GetTime() för egen cast / högerklick-borttagning
 local lastRecall = -100
+local lastZone = -100         -- laddningsskärm: klienten tar bort totems
 local lastTotemicCall = -100   -- Totemic Call flyttar totems: PLAYER_TOTEM_UPDATE då betyder inte att de dog
 local bar, buttons = nil, {}   -- timer-baren (byggs i BuildBar)
 
@@ -29,7 +30,8 @@ local function setSlot(slot, name, start, dur)
 	state[slot] = { name = name, start = start or GetTime(), dur = dur or defaultDur(name) }
 end
 
--- Läs klientens slot. Returnerar true om läsningen gick (inte secret).
+-- Läs klientens slot. Returnerar true om läsningen gick (inte secret). Andra värdet: true när klienten
+-- säger att ett totem står där men namnet inte går att läsa.
 function TO:ReadSlot(slot)
 	if not GetTotemInfo then return false end
 	local ok, have, name, start, dur = ns.getAll(GetTotemInfo, slot)
@@ -40,7 +42,7 @@ function TO:ReadSlot(slot)
 		return true
 	end
 	name = baseName(name)
-	if not name or name == "" then return false end
+	if not name or name == "" then return false, have == true end
 	if start and dur and dur > 0 then
 		setSlot(slot, name, start, dur)
 		if not InCombatLockdown() then ns.char.learnedDur[name] = math.floor(dur + 0.5) end
@@ -115,9 +117,11 @@ function TO:CheckDeath(slot, prev)
 	if now - (lastCast[slot] or -100) < 1.5 then return end           -- du satte ett nytt
 	if now - lastRecall < 1.5 or now - lastTotemicCall < 1.5 or now - (destroyed[slot] or -100) < 1.5 then return end
 	if ns.get(UnitIsDeadOrGhost, "player") == true then return end
+	if now - lastZone < 5 or ns.get(UnitOnTaxi, "player") == true then return end   -- laddningsskärm/taxi
 	-- Går slotten att läsa och står det ett totem där är allt som det ska: samma totem, eller ett nytt
 	-- av samma element som ersatte det (bara ditt eget totem kan stå i din slot)
-	if self:ReadSlot(slot) and state[slot] then return end
+	local readable, standing = self:ReadSlot(slot)
+	if (readable and state[slot]) or standing then return end
 	state[slot] = nil
 	self:UpdateBar()
 	ns.fire("TOTEMS_CHANGED")
@@ -689,7 +693,9 @@ function TO:OnShamanLogin()
 		TO:UpdateBar()
 		ns.fire("TOTEMS_CHANGED")
 	end)
+	ns.on("PLAYER_LEAVING_WORLD", function() lastZone = GetTime() end)
 	ns.on("PLAYER_ENTERING_WORLD", function()
+		lastZone = GetTime()
 		TO:ReadAll()
 		TO:UpdateBar()
 	end)

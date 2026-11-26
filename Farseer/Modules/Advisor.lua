@@ -137,6 +137,8 @@ local function scanDispels()
 				local a = ns.get(C_UnitAuras.GetAuraDataByIndex, unit, i, "HARMFUL")
 				if not a then break end
 				local dn = ns.field(a, "dispelName")
+				local an = ns.field(a, "name")
+				if type(an) == "string" and ns.NEVER_CLEANSE and ns.NEVER_CLEANSE[an] then dn = nil end
 				if dn == "Poison" then
 					dispelCache.poison = dispelCache.poison + 1
 					dispelCache.who = dispelCache.who or ns.get(UnitName, unit)

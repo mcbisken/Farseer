@@ -160,7 +160,7 @@ end)
 
 test("procs: fiendens casts", function()
 	local bar = ns.Procs.castBar
-	MOCK.units.target = { name = "Mage", hostile = true }
+	MOCK.units.target = { name = "Mage", hostile = true, target = "player" }
 	MOCK.casting.target = { name = "Fireball", start = MOCK.time, ends = MOCK.time + 3 }
 	MOCK.fire("UNIT_SPELLCAST_START", "target")
 	ns.Procs:Update()
@@ -423,7 +423,7 @@ test("raid: totemfördelning", function()
 	check(mine and mine.totems[1] == "Stoneskin Totem", "du får andra setet: " .. tostring(mine and mine.totems[1]))
 	check(plan[1].totems[4] == "Windfury Totem", "första får Windfury")
 	local lines = ns.RaidTotems:Lines(plan)
-	check(#lines == 2 and lines[2]:find("Thrall: Stoneskin, Flametongue", 1, true), "text: " .. tostring(lines[2]))
+	check(#lines == 2 and lines[2]:find("Thrall: Stoneskin, Searing", 1, true), "text: " .. tostring(lines[2]))
 	MOCK.multicast = {}
 	local ok = ns.RaidTotems:LoadMine()
 	check(ok and MOCK.multicast[ns.Totems:MultiCastAction(1, 2)] == MOCK.known["Stoneskin Totem"], "ditt set i Call")

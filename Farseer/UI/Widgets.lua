@@ -321,16 +321,26 @@ UI.HideMenu = hideMenu
 
 -- Medan en meny är öppen ligger huvudfönstret inte i UISpecialFrames: Escape stänger då bara menyn
 -- (CloseSpecialWindows stänger annars alla öppna ramar i listan på en gång)
-local held
+local held = false      -- fönstret är taget ur listan
+local holdToken = 0     -- en ny meny inom samma bildruta avbryter återläggningen
 function UI.HoldEscape(on)
 	if not UISpecialFrames then return end
-	if on and not held then
+	holdToken = holdToken + 1
+	if on then
+		if held then return end
 		for i = #UISpecialFrames, 1, -1 do
 			if UISpecialFrames[i] == "FarseerOptions" then table.remove(UISpecialFrames, i); held = true end
 		end
-	elseif not on and held then
-		held = nil
-		table.insert(UISpecialFrames, "FarseerOptions")
+	elseif held then
+		-- Nästa bildruta: CloseSpecialWindows går fortfarande igenom listan när menyn göms av Escape
+		local token = holdToken
+		local function back()
+			if token ~= holdToken or not held then return end
+			held = false
+			for _, n in ipairs(UISpecialFrames) do if n == "FarseerOptions" then return end end
+			table.insert(UISpecialFrames, "FarseerOptions")
+		end
+		if C_Timer and C_Timer.After then C_Timer.After(0, back) else back() end
 	end
 end
 
@@ -417,6 +427,7 @@ function UI.Menu(anchor, items, onPick)
 	menu:ClearAllPoints()
 	menu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
 	menu.anchor = anchor
+	UI.HoldEscape(true)   -- direkt: en ny ram är redan "visad", så OnShow kommer inte första gången
 	menu:Show()
 end
 

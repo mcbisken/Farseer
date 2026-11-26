@@ -121,7 +121,7 @@ end
 
 function GE:Refresh() self:Layout() end
 
-function GE:OnLogin()
+function GE:OnShamanLogin()
 	lastMode = ns.char.mode
 	self:Build()
 	self:Layout()

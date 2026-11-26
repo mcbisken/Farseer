@@ -141,7 +141,7 @@ end)
 test("v1.7 procs: PvP-kick bara när något är redo", function()
 	local flashes, restore = recordFlashes()
 	ns.Bars:SetMode("PVP", true)
-	MOCK.units.target = { name = "Mage", hostile = true }
+	MOCK.units.target = { name = "Mage", hostile = true, target = "player" }
 	MOCK.casting.target = { name = "Fireball", start = MOCK.time, ends = MOCK.time + 3 }
 	-- Andra tester kan ha glömt spellsen: se till att båda finns, och lämna det som det var
 	local had = { ["Earth Shock"] = MOCK.known["Earth Shock"] ~= nil, ["Grounding Totem"] = MOCK.known["Grounding Totem"] ~= nil }

@@ -51,7 +51,7 @@ def main():
     run_file(os.path.join(HERE, "tests.lua"))
     run_file(os.path.join(HERE, "tests_v11.lua"))
     run_file(os.path.join(HERE, "tests_v12.lua"))
-    for extra in ("tests_v16_weapons.lua", "tests_v16_totems.lua", "tests_v16_procs.lua", "tests_v17_weapons.lua", "tests_v17_totems.lua", "tests_v17_alert.lua", "tests_v17_procs.lua", "tests_v17_maelstrom.lua", "tests_v18.lua", "tests_v19.lua", "tests_v20.lua", "tests_v21.lua"):
+    for extra in ("tests_v16_weapons.lua", "tests_v16_totems.lua", "tests_v16_procs.lua", "tests_v17_weapons.lua", "tests_v17_totems.lua", "tests_v17_alert.lua", "tests_v17_procs.lua", "tests_v17_maelstrom.lua", "tests_v18.lua", "tests_v19.lua", "tests_v20.lua", "tests_v21.lua", "tests_v22.lua"):
         if os.path.exists(os.path.join(HERE, extra)):
             run_file(os.path.join(HERE, extra))
     rt.execute("FINISH()")

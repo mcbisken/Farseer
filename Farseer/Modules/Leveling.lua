@@ -466,8 +466,17 @@ function LV:OnShamanLogin()
 	ns.on("READY_CHECK", function()
 		if cfg().readyCheck then LV:ShowChecklist() end
 	end)
-	ns.on("PLAYER_ENTERING_WORLD", function()
+	-- Bara när du kommer in i en annan raid: inte vid /reload, inte som spöke efter en wipe
+	local lastRaid
+	ns.on("PLAYER_ENTERING_WORLD", function(_, isLogin, isReload)
 		local _, _, kind = ns.getAll(IsInInstance)
-		if cfg().checklist and kind == "raid" then C_Timer.After(3, function() LV:ShowChecklist() end) end
+		if kind ~= "raid" then lastRaid = nil return end
+		local okI, _, _, _, _, _, _, _, id = ns.getAll(GetInstanceInfo)
+		local key = (okI and id) or "raid"
+		local fresh = key ~= lastRaid
+		lastRaid = key
+		if not fresh or ns.clean(isReload) == true then return end
+		if ns.get(UnitIsDeadOrGhost, "player") == true then return end
+		if cfg().checklist then C_Timer.After(3, function() LV:ShowChecklist() end) end
 	end)
 end

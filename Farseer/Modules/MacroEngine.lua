@@ -83,6 +83,8 @@ function ME:Context(all)
 	for _, r in ipairs(ns.RACIAL_OFFENSIVE) do
 		if not all and ns.Spellbook:Knows(r) then ctx.racial = "/cast " .. r .. "\n" break end
 	end
+	-- Casters: bara Berserking (Blood Fury ger attack power och halverar healing du får)
+	ctx.racialCaster = (not all and ns.Spellbook:Knows("Berserking")) and "/cast Berserking\n" or ""
 	-- modcast: entries = { {mod, spell, mål}, ... }; okända spells hoppas över
 	function ctx.modcast(entries, defaultTarget)
 		local clauses, fallback = {}, nil
@@ -226,6 +228,15 @@ function ME:Save(name, body, perChar)
 	if #name > self.MAX_NAME then return false, "the name is longer than " .. self.MAX_NAME .. " characters" end
 	if #body > self.MAX_BODY then return false, string.format("the macro is %d characters (max %d)", #body, self.MAX_BODY) end
 	local idx = self:Exists(name)
+	-- Per karaktär: ett kontomakro med samma namn ska inte skrivas över, leta bland karaktärens egna
+	if perChar and idx and idx <= (limits()) and rawget(_G, "GetMacroInfo") then
+		local maxAcc = limits()
+		local _, numChar = GetNumMacros()
+		idx = nil
+		for i = maxAcc + 1, maxAcc + (tonumber(numChar) or 0) do
+			if ns.get(GetMacroInfo, i) == name then idx = i break end
+		end
+	end
 	if idx then
 		local ok, err = pcall(EditMacro, idx, name, self.ICON, body)
 		if not ok then return false, tostring(err) end
@@ -244,12 +255,12 @@ function ME:Save(name, body, perChar)
 	return true, "created"
 end
 
-function ME:CreateFromTemplate(id, quiet)
+function ME:CreateFromTemplate(id, quiet, noClaim)
 	local t = byId[id]
 	if not t then return false, "unknown template " .. tostring(id) end
 	local body = self:Render(t)
 	local ok, msg = self:Save(t.name, body, ns.db.macros.perCharacter)
-	if ok and not ns.db.macros.perCharacter then self:ClaimAccountMacros() end
+	if ok and not ns.db.macros.perCharacter and not noClaim then self:ClaimAccountMacros() end
 	if not quiet then
 		if ok then ns.print("macro |cffffd100%s|r %s.", t.name, msg)
 		else ns.print("|cffff4040%s|r: %s", t.name, msg) end
@@ -257,14 +268,18 @@ function ME:CreateFromTemplate(id, quiet)
 	return ok, msg
 end
 
-function ME:CreateCategory(cat)
-	local made, failed = 0, 0
+-- missingOnly: skapa bara makron som saknas och ta inte över kontomakron från en annan karaktär
+function ME:CreateCategory(cat, missingOnly)
+	local made, failed, kept = 0, 0, 0
 	for _, t in ipairs(ns.MACRO_TEMPLATES) do
 		if t.cat == cat and not t.experimental then
-			if self:CreateFromTemplate(t.id, true) then made = made + 1 else failed = failed + 1 end
+			if missingOnly and self:Exists(t.name) then
+				kept = kept + 1
+			elseif self:CreateFromTemplate(t.id, true, missingOnly) then made = made + 1 else failed = failed + 1 end
 		end
 	end
-	ns.print("%s: %d macros created/updated%s.", cat, made, failed > 0 and (", " .. failed .. " failed") or "")
+	ns.print("%s: %d macros created/updated%s%s.", cat, made, failed > 0 and (", " .. failed .. " failed") or "",
+		kept > 0 and (", " .. kept .. " kept (another character keeps them up to date)") or "")
 	ns.fire("MACROS_CHANGED")
 end
 

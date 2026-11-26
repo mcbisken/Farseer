@@ -38,12 +38,12 @@ add({ id = "ele_frost", cat = "Elemental", name = "FS FrostShock",
 	desc = "Frost Shock: 50% slow for 8 s. Kiting.",
 	body = "#showtooltip Frost Shock\n/cast {harm}Frost Shock" })
 add({ id = "ele_burst", cat = "Elemental", name = "FS Burst",
-	desc = "Lightning Mastery + racial + both trinkets, then Chain Lightning.",
+	desc = "Lightning Mastery + Berserking (troll) + both trinkets, then Chain Lightning.",
 	build = function(ctx)
 		local first = ctx.known("Lightning Mastery") and "Lightning Mastery" or "Chain Lightning"
 		return "#showtooltip " .. first .. "\n"
 			.. (ctx.known("Lightning Mastery") and "/cast Lightning Mastery\n" or "")
-			.. ctx.racial .. "/use 13\n/use 14\n/cast " .. ctx.harm .. "Chain Lightning"
+			.. ctx.racialCaster .. "/use 13\n/use 14\n/cast " .. ctx.harm .. "Chain Lightning"
 	end })
 add({ id = "ele_aoe", cat = "Elemental", name = "FS AoE",
 	desc = "No modifier: Chain Lightning. Shift: Fire Nova (at your fire totem). Ctrl: Magma Totem.",
@@ -59,7 +59,7 @@ add({ id = "ele_bolt_r1", cat = "Elemental", name = "FS BoltR1", experimental = 
 -- Enhancement
 ---------------------------------------------------------------------------------------------------
 add({ id = "enh_ss", cat = "Enhancement", name = "FS Strike",
-	desc = "Starts auto-attack and casts Stormstrike (8 s cd, +20% on the next Lightning/Earth Shock).",
+	desc = "Starts auto-attack and casts Stormstrike (20 s cd, +20% on the next Lightning/Earth Shock).",
 	body = "#showtooltip Stormstrike\n/startattack\n/cast Stormstrike" })
 add({ id = "enh_shock", cat = "Enhancement", name = "FS EnhShock",
 	desc = "No modifier: Earth Shock. Shift: Frost Shock. Ctrl: Flame Shock. Starts auto-attack.",
@@ -92,7 +92,7 @@ add({ id = "res_ch", cat = "Restoration", name = "FS ChainHeal",
 	desc = "Chain Heal on mouseover > target > yourself.",
 	body = "#showtooltip Chain Heal\n/cast {help}Chain Heal" })
 add({ id = "res_rt", cat = "Restoration", name = "FS Riptide",
-	desc = "Riptide (HoT, 12 s cd, makes the next Chain Heal on the target 25% stronger).",
+	desc = "Riptide (HoT, short cd, makes the next Chain Heal on the target 25% stronger).",
 	body = "#showtooltip Riptide\n/cast {help}Riptide" })
 add({ id = "res_ns", cat = "Restoration", name = "FS NS Heal",
 	desc = "Nature's Swiftness + instant Healing Wave. Panic button.",
@@ -101,7 +101,7 @@ add({ id = "res_mt", cat = "Restoration", name = "FS ManaTide",
 	desc = "Mana Tide Totem.",
 	body = "#showtooltip Mana Tide Totem\n/cast Mana Tide Totem" })
 add({ id = "res_combo", cat = "Restoration", name = "FS RTChain",
-	desc = "Riptide if it is ready, otherwise Chain Heal — same target (castsequence).",
+	desc = "Riptide, then Chain Heal twice on the same target (castsequence, starts over after 12 s). While Riptide is on cooldown it waits: use FS ChainHeal then.",
 	body = "#showtooltip\n/castsequence {help}reset=12 Riptide, Chain Heal, Chain Heal" })
 add({ id = "res_hw_low", cat = "Restoration", name = "FS HW Low", experimental = true,
 	desc = "Downrank: Healing Wave at the rank you chose on the Healing tab (default rank 4). Requires rank syntax in the client.",

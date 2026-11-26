@@ -45,6 +45,15 @@ end
 
 function SP:Current() return cfg().last end
 
+-- Osatta talangpoäng (0 om det inte går att läsa)
+local function unspent()
+	local f = rawget(_G, "GetUnspentTalentPoints")
+	local v = f and ns.get(f)
+	if type(v) ~= "number" and rawget(_G, "UnitCharacterPoints") then v = ns.get(UnitCharacterPoints, "player") end
+	return type(v) == "number" and v or 0
+end
+SP.Unspent = unspent
+
 function SP:Check(quiet)
 	local c = cfg()
 	if not c.auto then return end
@@ -54,6 +63,8 @@ function SP:Check(quiet)
 	end
 	local spec, how = self:Detect()
 	if not spec or spec == c.last then return end
+	-- Mitt i en omspec (poäng kvar att sätta): byt inte profil på ett halvfärdigt träd
+	if c.last ~= nil and unspent() > 1 then return end
 	local first = c.last == nil
 	c.last = spec
 	local did = {}

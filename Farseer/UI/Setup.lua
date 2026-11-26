@@ -18,7 +18,7 @@ local BINDS = {
 	{ id = "plain", name = "Bind the layout on normal keys", mod = "", keep = false,
 		desc = "Uses the spec's layout as it is. Keys you had are saved and can be restored." },
 	{ id = "shift", name = "Bind it on Shift + key", mod = "SHIFT", keep = false,
-		desc = "Your normal keys stay as they are; Farseer goes on Shift." },
+		desc = "Your normal keys stay as they are. Shift keys you already use are saved and replaced." },
 	{ id = "free", name = "Only use keys that are free", mod = "", keep = true,
 		desc = "Never replaces a key that already does something." },
 	{ id = "none", name = "Don't touch my keybinds",
@@ -65,7 +65,14 @@ function SU:Apply(c)
 	local s = specById(c.spec)
 	ns.char.bisSpec = s.id
 	if c.macros then
-		for _, cat in ipairs({ s.cat, "Totems", "PvP", "Utility" }) do ns.MacroEngine:CreateCategory(cat) end
+		-- Kontomakron som en annan karaktär äger skrivs inte om för den här (annan level/ras)
+		local ME = ns.MacroEngine
+		local other = not ns.db.macros.perCharacter and not ME:OwnsAccountMacros()
+		for _, cat in ipairs({ s.cat, "Totems", "PvP", "Utility" }) do ME:CreateCategory(cat, other) end
+		if other then
+			table.insert(out, "Macros: existing account macros were kept (another character owns them). "
+				.. "Use Refresh on the Macros tab to take them over.")
+		end
 	end
 	local b = byId(BINDS, c.binds)
 	if b and b.id ~= "none" then
@@ -234,7 +241,7 @@ function SU:Build()
 	local _, paint2 = choices(p2, p2.top, BINDS, "binds")
 	p2.paint = paint2
 	-- 3: varningar
-	local p3 = page("Alerts", "Big alerts in the middle of the screen: missing shield or imbue, totems out of range, Tremor/Grounding when needed.")
+	local p3 = page("Alerts", "Big alerts in the middle of the screen: which totem to drop (Tremor against fear, cleansing totems), totems that died or are out of range, low mana.")
 	local l3, paint3a = choices(p3, p3.top, ALERTS, "alert", 225, 4)
 	local sl = UI.Label(p3, "Read critical alerts aloud?", "GameFontNormal")
 	sl:SetPoint("TOPLEFT", l3, "BOTTOMLEFT", 0, -16)

@@ -114,7 +114,7 @@ ns.HUD_SPELLS = {
 	{ spell = "Earth Shock", range = true, note = "Shocks share a cooldown" },
 	{ spell = "Stormstrike", range = true },
 	{ spell = "Chain Lightning", range = true },
-	{ spell = "Lava Burst", range = true, note = "+20 % on Flame Shocked targets" },
+	{ spell = "Lava Burst", range = true, note = "Always crits on your Flame Shocked targets" },
 	{ spell = "Riptide" },
 	{ spell = "Fire Nova" },
 	{ spell = "Nature's Swiftness" },

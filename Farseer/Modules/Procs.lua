@@ -105,7 +105,7 @@ end
 PC.applications = applications
 
 local function instanceOf(a)
-	if a == nil or ns.isSecret(a) then return nil end
+	if ns.isSecret(a) or a == nil then return nil end
 	return ns.field(a, "auraInstanceID")
 end
 
@@ -245,6 +245,11 @@ end
 
 function PC:Layout()
 	if not frame then return end
+	-- Spelets aura-behållare kan göra ramen skyddad: då väntar layouten tills strid är över
+	if InCombatLockdown() and frame.IsProtected and ns.get(frame.IsProtected, frame) == true then
+		ns.afterCombat("procs-layout", function() PC:Layout() end)
+		return
+	end
 	local c = ns.char.bars.procs
 	ns.placeFrame(frame, c)
 	local size = c.size or 36
@@ -326,7 +331,7 @@ local MW_ICON = "Interface\\Icons\\Spell_Shaman_MaelstromWeapon"
 function PC:MaelstromIcon(a)
 	if not ns.isSecret(a) and a ~= nil then
 		local ok, ic = pcall(function() return a.icon end)
-		if ok and ic ~= nil then return ic end
+		if ok and present(ic) then return ic end
 	end
 	local ids = {}
 	for _, id in ipairs(ns.MAELSTROM_BUFF or {}) do table.insert(ids, id) end
@@ -559,7 +564,7 @@ function PC:UpdateMaelstrom()
 	local n, raw, aura = self:Maelstrom()
 	local max = ns.MAELSTROM_MAX or 5
 	-- Buffens ikon kan vara secret i strid: SetTexture tar emot den ändå, annars filen
-	if not pcall(f.icon.SetTexture, f.icon, self:MaelstromIcon(aura)) then f.icon:SetTexture(MW_ICON) end
+	if not pcall(function() f.icon:SetTexture(self:MaelstromIcon(aura)) end) then f.icon:SetTexture(MW_ICON) end
 	setShown(f, InCombatLockdown() or (n ~= 0))
 	local box = self:MaelstromBox()
 	if box then
@@ -584,7 +589,9 @@ function PC:UpdateMaelstrom()
 	if f.sensor.pulse then f.sensor.pulse:Set(flashOn()) end
 	showCount(f.count, n, raw)
 	local v = n
-	if v == nil then v = present(raw) and raw or 0 end
+	if v == nil then
+		if present(raw) then v = raw else v = 0 end
+	end
 	pcall(f.sensor.SetValue, f.sensor, v)
 	if n then
 		f.icon:SetDesaturated(n == 0)
@@ -763,7 +770,7 @@ end
 -- Slutet på buffen om den går att läsa, annars nil
 local function buffEnds(def)
 	local a = playerAura(ns.SPELL_IDS and ns.SPELL_IDS[def.spell], def.spell)
-	if a == nil or ns.isSecret(a) then return nil end
+	if ns.isSecret(a) or a == nil then return nil end
 	local now = GetTime()
 	local exp = ns.field(a, "expirationTime")
 	if type(exp) == "number" and exp > now then return exp end
@@ -933,7 +940,7 @@ end
 function PC:CheckWaterBreathing()
 	if not cfg().breath or InCombatLockdown() or ns.get(IsSwimming) ~= true then return end
 	local a = playerAura(ns.SPELL_IDS and ns.SPELL_IDS["Water Breathing"], "Water Breathing")
-	if a == nil or ns.isSecret(a) then return end
+	if ns.isSecret(a) or a == nil then return end
 	local exp = ns.field(a, "expirationTime")
 	if type(exp) ~= "number" or exp <= 0 then return end
 	local left = exp - GetTime()
@@ -1279,7 +1286,7 @@ function PC:ManaAdvice()
 	if ready("Mana Tide Totem") then return "Mana Tide Totem", "Drop Mana Tide Totem (restores your group's mana over 12 s)." end
 	if ns.Spellbook:Knows("Water Shield") then
 		local a = playerAura(ns.SHIELD_IDS["Water Shield"], "Water Shield")
-		if a == nil then return "Water Shield", "Switch to Water Shield — it gives mana when you're hit." end
+		if not present(a) then return "Water Shield", "Switch to Water Shield — it gives mana when you're hit." end
 	end
 	if ns.Spellbook:Knows("Mana Spring Totem") and not ns.Totems:Active("Mana Spring Totem") then
 		return "Mana Spring Totem", "Drop Mana Spring Totem."
@@ -1349,11 +1356,16 @@ function PC:UpdatePurge()
 	if flashOn() then f.glow:On() else f.glow:Off() end
 	setShown(f, true)
 	if cfg().purgeAlertPvp and ns.Bars:Mode() == "PVP" then
+		-- Bara buffar som är värda att Purga: i PvP har nästan alla Fortitude/Intellect/Mark
+		local worth
+		for _, b in ipairs(list) do
+			if type(b.name) == "string" and ns.PURGE_PRIORITY and ns.PURGE_PRIORITY[b.name] then worth = b break end
+		end
 		local guid = ns.get(UnitGUID, "target") or "target"
-		local key = guid .. ":" .. tostring(list[1].name)
-		if not purgeWarned[key] then
+		local key = worth and (guid .. ":" .. worth.name)
+		if key and not purgeWarned[key] then
 			purgeWarned[key] = true
-			ns.Alert:Flash("purge", "Purge", "PURGE: " .. tostring(list[1].name or "buff"):upper(),
+			ns.Alert:Flash("purge", "Purge", "PURGE: " .. worth.name:upper(),
 				"Target has " .. #list .. " buff(s) that Purge removes.", { 0.75, 0.45, 1 }, 2.5, "info")
 		end
 	end
@@ -1363,6 +1375,31 @@ end
 -- Fiendens casts
 ---------------------------------------------------------------------------------------------------
 local UNIT_LABEL = { target = "Target", focus = "Focus" }
+
+-- Siktar casten på dig eller din grupp? true/false, nil = går inte att läsa (varna då hellre)
+local function aimedAtUs(unit)
+	local tt = unit .. "target"
+	local ex = ns.get(UnitExists, tt)
+	if ex == nil then return nil end
+	if ex ~= true then return false end
+	local me = ns.get(UnitIsUnit, tt, "player")
+	if me == nil then return nil end
+	if me == true then return true end
+	for i = 1, 4 do
+		local p = ns.get(UnitIsUnit, tt, "party" .. i)
+		if p == nil then return nil end
+		if p == true then return true end
+	end
+	return false
+end
+
+-- Earth Shock når fram (20 m)? nil = okänt
+local function shockInRange(unit)
+	if not (C_Spell and C_Spell.IsSpellInRange) then return nil end
+	local v = ns.get(C_Spell.IsSpellInRange, ns.L("Earth Shock"), unit)
+	if v == nil then return nil end
+	return v == true or v == 1
+end
 
 function PC:ReadCast(unit)
 	local ok, name, _, _, startMS, endMS, _, _, notInt = ns.getAll(UnitCastingInfo, unit)
@@ -1387,10 +1424,10 @@ function PC:OnUnitCast(event, unit)
 			-- Earth Shock bara om den är redo och casten går att avbryta, annars Grounding Totem om den är
 			-- redo, annars ingen varning (inget att trycka på)
 			local what = c.name and c.name:upper() or (UNIT_LABEL[unit]:upper() .. " CASTING")
-			if c.notInt ~= true and ready("Earth Shock") then
+			if c.notInt ~= true and ready("Earth Shock") and shockInRange(unit) ~= false then
 				ns.Alert:Flash("cast-" .. unit, "Earth Shock", "KICK! " .. what, "Earth Shock interrupts the cast.",
 					{ 1, 0.35, 0.2 }, 1.5, "critical")
-			elseif ready("Grounding Totem") then
+			elseif ready("Grounding Totem") and aimedAtUs(unit) ~= false then
 				ns.Alert:Flash("cast-" .. unit, "Grounding Totem", "GROUND IT! " .. what,
 					"Grounding Totem absorbs a spell aimed at you.", { 1, 0.35, 0.2 }, 1.5, "critical")
 			end

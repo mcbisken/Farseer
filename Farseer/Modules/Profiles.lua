@@ -192,7 +192,9 @@ function PR:Apply(p, opts)
 			-- tabeller som ramarna håller referenser till.
 			if type(v) == "table" and type(ns.char[k]) == "table" then
 				local incoming = ns.copy(v)
-				if type(d) == "table" then ns.merge(incoming, d) end
+				-- Bara tabeller med namngivna fält: en lista (t.ex. counterTotems) ska inte fyllas ut med
+				-- standardlistans poster, då kommer borttagna tillbaka
+				if type(d) == "table" and d[1] == nil then ns.merge(incoming, d) end
 				ns.assign(ns.char[k], incoming)
 			else
 				ns.char[k] = ns.copy(v)

@@ -6,19 +6,48 @@
 local _, ns = ...
 local RT = ns.module("RaidTotems")
 
--- Set per grupptyp: första shamanen i gruppen får [1], nästa [2] osv.
+-- Set per grupptyp: första shamanen i gruppen får [1], nästa [2] osv. Ordning: jord, eld, vatten, luft.
+-- Flametongue finns inte med: den krockar med Windfury (Data/Situations.lua).
 RT.SETS = {
 	melee = {
 		{ "Strength of Earth Totem", "Searing Totem", "Mana Spring Totem", "Windfury Totem" },
-		{ "Stoneskin Totem", "Flametongue Totem", "Healing Stream Totem", "Grace of Air Totem" },
+		{ "Stoneskin Totem", "Searing Totem", "Healing Stream Totem", "Grace of Air Totem" },
 		{ "Tremor Totem", "Frost Resistance Totem", "Poison Cleansing Totem", "Nature Resistance Totem" },
 	},
 	caster = {
 		{ "Stoneskin Totem", "Searing Totem", "Mana Spring Totem", "Windwall Totem" },
 		{ "Tremor Totem", "Frost Resistance Totem", "Healing Stream Totem", "Nature Resistance Totem" },
-		{ "Strength of Earth Totem", "Flametongue Totem", "Poison Cleansing Totem", "Grace of Air Totem" },
+		{ "Strength of Earth Totem", "Searing Totem", "Poison Cleansing Totem", "Grace of Air Totem" },
 	},
 }
+
+-- I Forever når de här hela raiden: en räcker, nästa shaman tar ett grupptotem av samma element i stället
+RT.RAID_WIDE = { ["Windfury Totem"] = true, ["Flametongue Totem"] = true, ["Strength of Earth Totem"] = true,
+	["Grace of Air Totem"] = true, ["Frost Resistance Totem"] = true, ["Fire Resistance Totem"] = true,
+	["Nature Resistance Totem"] = true }
+-- Ersättare per element (index = plats i setet), i den ordning de väljs
+RT.FALLBACK = {
+	{ "Stoneskin Totem", "Tremor Totem", "Strength of Earth Totem" },
+	{ "Searing Totem", "Frost Resistance Totem", "Magma Totem" },
+	{ "Mana Spring Totem", "Healing Stream Totem", "Poison Cleansing Totem", "Fire Resistance Totem" },
+	{ "Grace of Air Totem", "Windwall Totem", "Grounding Totem", "Nature Resistance Totem", "Windfury Totem" },
+}
+
+local function dedupe(set, used)
+	local out = {}
+	for i, t in ipairs(set) do
+		if RT.RAID_WIDE[t] and used[t] then
+			t = nil
+			for _, alt in ipairs(RT.FALLBACK[i] or {}) do
+				if not (RT.RAID_WIDE[alt] and used[alt]) then t = alt break end
+			end
+			t = t or set[i]
+		end
+		if RT.RAID_WIDE[t] then used[t] = true end
+		out[i] = t
+	end
+	return out
+end
 
 local function short(t) return (t:gsub(" Totem$", "")) end
 
@@ -59,13 +88,26 @@ function RT:Plan(roster)
 		if ns.CASTER_CLASSES[p.class] then g.caster = g.caster + 1 end
 	end
 	local plan = {}
+	-- Melee-grupper väljer först (Windfury och Strength of Earth gör mest där), sedan i gruppordning
+	local order = {}
 	for gi, g in pairs(groups) do
-		local kind = g.melee >= g.caster and "melee" or "caster"
+		g.kind = g.melee >= g.caster and "melee" or "caster"
+		table.insert(order, gi)
+	end
+	table.sort(order, function(a, b)
+		local ka, kb = groups[a].kind, groups[b].kind
+		if ka ~= kb then return ka == "melee" end
+		return a < b
+	end)
+	local used = {}
+	for _, gi in ipairs(order) do
+		local g = groups[gi]
+		local kind = g.kind
 		table.sort(g.shamans, function(a, b) return a.name < b.name end)
 		for i, s in ipairs(g.shamans) do
 			local sets = self.SETS[kind]
 			table.insert(plan, { group = gi, kind = kind, shaman = s.name, me = s.me,
-				totems = sets[(i - 1) % #sets + 1], melee = g.melee, caster = g.caster })
+				totems = dedupe(sets[(i - 1) % #sets + 1], used), melee = g.melee, caster = g.caster })
 		end
 	end
 	table.sort(plan, function(a, b)

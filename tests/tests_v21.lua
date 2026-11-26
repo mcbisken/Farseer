@@ -170,6 +170,13 @@ test("v21: Escape på en meny stänger inte fönstret", function()
 	check(not has("FarseerOptions") or not hadMain, "huvudfönstret ur listan medan menyn är öppen")
 	ns.UI.HideMenu()
 	if menu and menu.__scripts and menu.__scripts.OnHide then menu.__scripts.OnHide(menu) end
+	MOCK.runTimers()   -- läggs tillbaka nästa bildruta (efter CloseSpecialWindows-loopen)
 	check(has("FarseerOptions") == hadMain, "tillbaka när menyn stängs")
+	-- Första menyn under sessionen: ingen OnShow (ramen är redan "visad"), Menu tar ut fönstret direkt
+	ns.UI.Menu(anchor, { { text = "a", value = 1 } }, function() end)
+	check(not has("FarseerOptions") or not hadMain, "direkt när menyn öppnas")
+	ns.UI.HideMenu()
+	if menu and menu.__scripts and menu.__scripts.OnHide then menu.__scripts.OnHide(menu) end
+	MOCK.runTimers()
 	ns.Options:Hide()
 end)

@@ -708,11 +708,19 @@ end
 function BA:SetMode(mode, quiet)
 	mode = mode == "PVP" and "PVP" or "PVE"
 	local changed = ns.char.mode ~= mode
+	-- I strid går knapparna inte att ändra: hela bytet väntar, så knappar, markeringar och
+	-- castsequence-läget följer samma lista
+	if changed and InCombatLockdown() then
+		ns.afterCombat("set-mode", function() BA:SetMode(mode, quiet) end)
+		if not quiet then
+			ns.print("mode: %s (switches after combat)", mode == "PVP" and "|cffff6060PvP|r" or "|cff60ff60PvE|r")
+		end
+		return
+	end
 	ns.char.mode = mode
 	self:ApplySituations()
 	if changed and not quiet then
-		ns.print("mode: %s%s", mode == "PVP" and "|cffff6060PvP|r" or "|cff60ff60PvE|r",
-			InCombatLockdown() and " (switches after combat)" or "")
+		ns.print("mode: %s", mode == "PVP" and "|cffff6060PvP|r" or "|cff60ff60PvE|r")
 	end
 	ns.fire("MODE_CHANGED", mode)
 end

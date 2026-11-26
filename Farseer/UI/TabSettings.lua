@@ -179,7 +179,7 @@ local function build(p)
 		function(v)
 			ns.db.classicUI = v
 			ns.print("look: %s after /reload.", v and "classic" or "Farseer")
-		end, "Blizzard's own buttons, checkboxes and fonts, and no Farseer borders on the bars. Use it if the new look renders badly."))
+		end, "Blizzard's own buttons, checkboxes, dropdowns and fonts, and no Farseer borders on the bars (the window frames keep their dark look). Use it if the new controls render badly."))
 	cl:SetPoint("TOPLEFT", dbg, "BOTTOMLEFT", -4, -4)
 	local info = UI.Label(p,
 		"Secure buttons, keybinds and macros can't change in combat — Farseer applies changes when combat ends.",

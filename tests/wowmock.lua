@@ -371,7 +371,11 @@ function GetCurrentBindingSet() return 2 end
 ---------------------------------------------------------------------------------------------------
 -- MOCK.units[unit] = { name, class, hostile, player, dead }
 MOCK.units.player = { name = "Thrall", class = "SHAMAN", player = true }
-local function U(unit) return MOCK.units[unit] end
+local function U(unit)
+	if MOCK.units[unit] then return MOCK.units[unit] end
+	local base = type(unit) == "string" and unit:match("^(.-)target$")
+	if base and base ~= "" and MOCK.units[base] and MOCK.units[base].target then return MOCK.units[MOCK.units[base].target] end
+end
 -- "nameplate1target" -> MOCK.units.nameplate1.target (namnet på en annan unit)
 function UnitIsUnit(a, b)
 	local function resolve(u)

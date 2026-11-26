@@ -145,8 +145,9 @@ function CC:Restore()
 	local ok, err = pcall(C_ClickBindings.SetProfileByInfo, backup)
 	if not ok then return false, tostring(err) end
 	-- Läs tillbaka innan backupen kastas: gick det inte är den det enda som finns kvar
-	if #backup > 0 then
-		local after, found = self:Read() or {}, 0
+	local after = self:Read()
+	if #backup > 0 and after then
+		local found = 0
 		for _, b in ipairs(backup) do
 			for _, a in ipairs(after) do
 				if a.button == b.button and a.modifiers == b.modifiers and a.actionID == b.actionID then found = found + 1 break end

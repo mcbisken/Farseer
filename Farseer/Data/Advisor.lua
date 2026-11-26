@@ -83,7 +83,7 @@ ns.BOSS_RULES = {
 	{ "Flamegor", "Fire Resistance Totem", "Flamegor: Fire Nova" },
 	{ "Ragnaros", "Fire Resistance Totem", "Ragnaros: fire damage" },
 	{ "Sapphiron", "Frost Resistance Totem", "Sapphiron: Frost Aura" },
-	{ "Viscidus", "Frost Resistance Totem", "Viscidus: Frostbolt Volley" },
+	{ "Viscidus", "Nature Resistance Totem", "Viscidus: Poison Bolt Volley / Toxin" },
 	{ "Azuregos", "Frost Resistance Totem", "Azuregos: frost damage" },
 	{ "Rage Winterchill", "Frost Resistance Totem", "Winterchill: Frost Nova / Icebolt" },
 	{ "Princess Huhuran", "Nature Resistance Totem", "Huhuran: Poison Bolt Volley" },
@@ -128,7 +128,6 @@ ns.DISPEL_MOBS = {
 -- Instans/zon -> resist-totem (lägre prioritet än bossregler)
 ns.ZONE_RULES = {
 	["Molten Core"] = { "Fire Resistance Totem", "Molten Core: fire damage everywhere" },
-	["Blackwing Lair"] = { "Fire Resistance Totem", "Blackwing Lair: dragonfire" },
 	["Onyxia's Lair"] = { "Fire Resistance Totem", "Onyxia's Lair: fire breath" },
 }
 
@@ -137,4 +136,15 @@ ns.MELEE_CLASSES = { WARRIOR = true, ROGUE = true, PALADIN = true }
 ns.CASTER_CLASSES = { MAGE = true, WARLOCK = true, PRIEST = true }
 
 -- Kontroll-typer (C_LossOfControl) som Tremor Totem bryter
+-- Debuffar som inte ska renas: raiden behöver dem (Hakkar: Poisonous Blood skyddar mot Blood Siphon;
+-- Grobbulus: Mutating Injection exploderar i gruppen om den tas bort)
+ns.NEVER_CLEANSE = { ["Poisonous Blood"] = true, ["Mutating Injection"] = true }
+
+-- Purge-varningen i PvP: bara buffar som är värda en Purge (inte Fortitude, Arcane Intellect osv.)
+ns.PURGE_PRIORITY = { ["Power Word: Shield"] = true, ["Blessing of Protection"] = true, ["Blessing of Freedom"] = true,
+	["Ice Barrier"] = true, ["Mana Shield"] = true, ["Fear Ward"] = true, ["Innervate"] = true,
+	["Arcane Power"] = true, ["Nature's Swiftness"] = true, ["Renew"] = true, ["Rejuvenation"] = true,
+	["Regrowth"] = true, ["Power Infusion"] = true, ["Presence of Mind"] = true, ["Divine Favor"] = true,
+	["Blessing of Sacrifice"] = true, ["Hand of Freedom"] = true }
+
 ns.TREMOR_LOC_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true, CONFUSE = false }

@@ -136,7 +136,7 @@ ns.BINDING_PRESETS = {
 		desc = "Side button 4: Kick. Side button 5: Grounding. Shift+side button: Tremor / Earthbind.",
 		binds = {
 			{ "BUTTON4", macro = "pvp_kick" }, { "BUTTON5", macro = "pvp_ground" },
-			{ "SHIFT-BUTTON4", macro = "pvp_tremor" }, { "SHIFT-BUTTON5", macro = "pvp_ebind" },
+			{ "SHIFT-BUTTON4", macro = "pvp_tremor" }, { "SHIFT-BUTTON5", spell = "Earthbind Totem" },
 		},
 	},
 }

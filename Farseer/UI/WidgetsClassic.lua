@@ -133,9 +133,19 @@ function UI.MultiLine(parent, w, h, onChange)
 end
 
 -- Stegare: [-] värde [+]
-function UI.Stepper(parent, label, min, max, step, get, set, fmt)
+function UI.Stepper(parent, label, min, max, step, get, set, fmt, tip)
 	local f = CreateFrame("Frame", nil, parent)
 	f:SetSize(260, 24)
+	if tip then
+		f:EnableMouse(true)
+		f:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText(label)
+			GameTooltip:AddLine(tip, 1, 1, 1, true)
+			GameTooltip:Show()
+		end)
+		f:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	end
 	local l = UI.Label(f, label)
 	l:SetPoint("LEFT", 0, 0)
 	l:SetWidth(150)
@@ -232,6 +242,7 @@ function UI.Menu(anchor, items, onPick)
 	menu:ClearAllPoints()
 	menu:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -2)
 	menu.anchor = anchor
+	if NEW.HoldEscape then NEW.HoldEscape(true) end
 	menu:Show()
 end
 

@@ -345,8 +345,14 @@ end)
 -- Wipe/kill: DBM stoppar oftast sina timers (DBM_TimerStop) och BigWigs skickar BigWigs_StopBars, men
 -- för säkerhets skull rensas allt vid ENCOUNTER_END och när du lämnar strid, och den schemalagda
 -- varningen visas bara i strid.
+-- Under en encounter rensas inget när du lämnar strid: död + Reincarnation/soulstone ska inte tappa
+-- väntande varningar (de visas ändå bara i strid)
+local encounter = false
+function BM:InEncounter() return encounter end
 function BM:OnShamanLogin()
 	self:TryHook()
-	ns.on("ENCOUNTER_END", function() BM:ClearAll() end)
-	ns.on("PLAYER_REGEN_ENABLED", function() BM:ClearAll() end)
+	ns.on("ENCOUNTER_START", function() encounter = true end)
+	ns.on("ENCOUNTER_END", function() encounter = false; BM:ClearAll() end)
+	ns.on("PLAYER_REGEN_ENABLED", function() if not encounter then BM:ClearAll() end end)
+	ns.on("PLAYER_ENTERING_WORLD", function() encounter = false end)
 end
