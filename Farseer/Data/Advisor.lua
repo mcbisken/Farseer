@@ -147,4 +147,7 @@ ns.PURGE_PRIORITY = { ["Power Word: Shield"] = true, ["Blessing of Protection"] 
 	["Regrowth"] = true, ["Power Infusion"] = true, ["Presence of Mind"] = true, ["Divine Favor"] = true,
 	["Blessing of Sacrifice"] = true, ["Hand of Freedom"] = true }
 
-ns.TREMOR_LOC_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = true, SLEEP = true, CONFUSE = false }
+-- Tremor tar bort fear, charm och sleep. Inte possess (Mind Control, se BossMods) och inte horror:
+-- Death Coil räknas som fear i klientens förlust-av-kontroll-data men går inte att pulsa bort.
+ns.TREMOR_LOC_TYPES = { FEAR = true, FEAR_MECHANIC = true, CHARM = true, POSSESS = false, SLEEP = true, CONFUSE = false }
+ns.TREMOR_LOC_IGNORE = { [6789] = true, [17925] = true, [17926] = true }   -- Death Coil (warlock), horror

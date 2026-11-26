@@ -18,6 +18,10 @@ local purgeWarned = {}
 local casts = {}         -- [unit] = { name, start, ends, notInt, channel }
 local dr = {}            -- [enhet] = { [kategori] = { start, dur, level, immune } }
 local procInstance = {}  -- [proc-nyckel] = auraInstanceID (reserv när uppslaget blockeras)
+local procSeenAt = {}    -- [proc-nyckel] = GetTime() när buffen senast lästes (utan container: hur länge den får stå)
+local procBox = {}       -- [proc-nyckel] = nil inte försökt, false gick inte, annars { container, button, ... }
+local procBoxError = {}
+local lastShield         -- skölden som senast lästes/castades; false = läst: ingen sköld, nil = okänt
 local cdActive = {}      -- [nyckel] = { ends, def, at }
 local breath = { token = 0 }
 local wbWarned           -- Water Breathing-instansen vi redan varnat för
@@ -27,6 +31,7 @@ local wbWarned           -- Water Breathing-instansen vi redan varnat för
 -- Flurry visas bara när buffen finns, så de behöver ingen kontroll av talangen.
 local PROCS = {
 	{ key = "clearcast", cfg = "clearcast", name = "Clearcasting", ids = { 16246 }, flash = true,
+		talent = "Elemental Focus", dur = 15, box = true,
 		file = "Interface\\Icons\\Spell_Shadow_ManaBurn",
 		tip = "Elemental Focus: your next damage spell costs less mana." },
 	{ key = "stormstrike", cfg = "stormstrike", name = "Stormstrike", ids = {}, requires = "Stormstrike", target = true,
@@ -34,6 +39,7 @@ local PROCS = {
 		file = "Interface\\Icons\\Ability_Shaman_Stormstrike",
 		tip = "Stormstrike is up: your next Nature spells (shocks, Lightning Bolt) hit harder." },
 	{ key = "flurry", cfg = "flurry", name = "Flurry", ids = { 16257, 16277, 16278, 16279, 16280 }, flash = true,
+		talent = "Flurry", dur = 15, box = true,
 		file = "Interface\\Icons\\Ability_GhoulFrenzy",
 		tip = "Flurry: faster attacks for the next swings. The number is swings left." },
 }
@@ -67,25 +73,55 @@ PC.OWN_CD = OWN_CD
 ---------------------------------------------------------------------------------------------------
 -- Läsning
 ---------------------------------------------------------------------------------------------------
+-- Är aurorna låsta just nu (strid, encounter, PvP-match)? Ett secret svar räknas som ja.
+local function aurasSecret()
+	if not (C_Secrets and C_Secrets.ShouldAurasBeSecret) then return false end
+	local ok, v = pcall(C_Secrets.ShouldAurasBeSecret)
+	if not ok then return false end
+	return ns.isSecret(v) or v == true
+end
+PC.aurasSecret = aurasSecret
+
+-- Säger klienten att just den här buffen går att läsa trots låsningen (spellen är aldrig secret)?
+local function spellAuraOpen(id)
+	local f = C_Secrets and C_Secrets.ShouldSpellAuraBeSecret
+	if not f then return false end
+	local ok, v = pcall(f, id)
+	return ok and not ns.isSecret(v) and v == false
+end
+
 -- Auran på dig: tabell (kan innehålla secret-fält), eller nil. instanceID används om uppslaget blockeras.
+-- Andra värdet: true när "nil" inte betyder "saknas". I Forever kastar varje auraläsning ett fel i strid
+-- ("Auras cannot be accessed when secret while tainted"), även dina egna buffar och per instans
+-- (forever-addon-kit, BUG_REPORTS.md "Post 4").
 local function playerAura(ids, name, instanceID)
 	local U = C_UnitAuras
-	if not U then return nil end
+	if not U then return nil, true end
+	local failed = false
 	if U.GetPlayerAuraBySpellID then
 		for _, id in ipairs(ids or {}) do
 			local ok, a = pcall(U.GetPlayerAuraBySpellID, id)
-			if ok and (ns.isSecret(a) or a ~= nil) then return a end
+			if not ok then failed = true elseif ns.isSecret(a) or a ~= nil then return a, false end
 		end
 	end
 	if name and U.GetAuraDataBySpellName then
 		local ok, a = pcall(U.GetAuraDataBySpellName, "player", ns.L(name), "HELPFUL")
-		if ok and (ns.isSecret(a) or a ~= nil) then return a end
+		if not ok then failed = true elseif ns.isSecret(a) or a ~= nil then return a, false end
 	end
 	if instanceID and U.GetAuraDataByAuraInstanceID then
 		local ok, a = pcall(U.GetAuraDataByAuraInstanceID, "player", instanceID)
-		if ok and (ns.isSecret(a) or a ~= nil) then return a end
+		if not ok then failed = true elseif ns.isSecret(a) or a ~= nil then return a, false end
 	end
-	return nil
+	if failed then return nil, true end
+	-- Inget fel men aurorna är låsta: "saknas" gäller bara buffar som klienten säger är öppna
+	if aurasSecret() then
+		local open = false
+		for _, id in ipairs(ids or {}) do
+			if spellAuraOpen(id) then open = true break end
+		end
+		if not open then return nil, true end
+	end
+	return nil, false
 end
 PC.playerAura = playerAura
 
@@ -109,9 +145,6 @@ local function instanceOf(a)
 	return ns.field(a, "auraInstanceID")
 end
 
-local function aurasSecret()
-	return C_Secrets and C_Secrets.ShouldAurasBeSecret and ns.get(C_Secrets.ShouldAurasBeSecret) == true
-end
 
 ---------------------------------------------------------------------------------------------------
 -- Ramar
@@ -678,7 +711,15 @@ local function targetDebuff(name)
 end
 PC.TargetDebuff = targetDebuff
 
+-- Ikonen är bara en plats i raden: spelets knapp (containern) ritar buffen ovanpå
+local function placeholder(f)
+	f.icon:SetAlpha(0)
+	f.count:SetText("")
+	f.glow:Off()
+end
+
 local function showProc(self, def, f, a)
+	f.icon:SetAlpha(1)
 	if not pcall(f.icon.SetTexture, f.icon, self:ProcIcon(def, a)) then f.icon:SetTexture(def.file) end
 	local n, raw = applications(a)
 	-- En laddning (eller ingen) = ingen siffra
@@ -695,11 +736,28 @@ function PC:UpdateProc(def)
 		setOff(f)
 		return
 	end
-	-- Att auran finns går att se även när den är secret (uppslaget ger ett secret-värde, inte nil)
-	local a = playerAura(def.ids, def.name, procInstance[def.key])
+	local a, blocked = playerAura(def.ids, def.name, procInstance[def.key])
+	local box = self:ProcBox(def.key)
 	if present(a) then
 		procInstance[def.key] = instanceOf(a) or procInstance[def.key]
+		procSeenAt[def.key] = GetTime()
+		if not ns.isSecret(a) then ns.char.procSeen = ns.char.procSeen or {}; ns.char.procSeen[def.key] = true end
 		showProc(self, def, f, a)
+		if box then placeholder(f) end
+		return
+	end
+	if blocked and not def.target then
+		if box then
+			-- I strid ritar spelets knapp buffen. Vår ikon är en osynlig plats i raden så att knappen inte
+			-- hamnar ovanpå en annan ikon, men bara när buffen kan komma (setts förut eller talangen finns).
+			setShown(f, self:ProcExpected(def))
+			placeholder(f)
+			return
+		end
+		-- Utan container: det som syns står kvar som längst buffens längd från den senaste läsningen
+		local at = procSeenAt[def.key]
+		if f:IsShown() and at and GetTime() - at < (def.dur or 15) then return end
+		setShown(f, false)
 		return
 	end
 	procInstance[def.key] = nil
@@ -808,6 +866,9 @@ function PC:OnPlayerCast(spellID)
 	if type(spellID) ~= "number" or ns.isSecret(spellID) then return end
 	local name = ns.canon(ns.get(C_Spell.GetSpellName, spellID))
 	if name and OWN_CD[name] then ownCast[name] = GetTime() end
+	if name then
+		for _, s in ipairs(ns.SHIELDS) do if name == s then lastShield = s end end
+	end
 	if isStormstrike(spellID, name) then self:StormstrikeCast() return end
 	local def = name and CD_TIMERS[name]
 	if not def or not cfg().cdTimers then return end
@@ -1133,6 +1194,157 @@ function PC:ResetShieldBox()
 end
 
 function PC:ShieldBox() return shBox and shBox.button and shBox or nil end
+
+---------------------------------------------------------------------------------------------------
+-- Clearcasting och Flurry i spelets aura-container: i strid går buffarna inte att läsa, men containern
+-- (Blizzard_CustomAuraContainer) visar dina egna buffar per spell-ID även då, med tid och laddningar.
+---------------------------------------------------------------------------------------------------
+local function procDef(key)
+	for _, d in ipairs(PROCS) do if d.key == key then return d end end
+end
+
+local function initProcButton(box, def, button)
+	local f = icons[def.key]
+	local size = f:GetWidth()
+	if type(size) ~= "number" or size <= 0 then size = ns.char.bars.procs.size or 36 end
+	placeGameButton(button, size)
+	noMouse(button)
+	local tex = button:CreateTexture(nil, "ARTWORK")
+	tex:SetPoint("TOPLEFT", 1, -1)
+	tex:SetPoint("BOTTOMRIGHT", -1, 1)
+	tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	if not pcall(tex.SetTexture, tex, PC:ProcIcon(def, nil)) then tex:SetTexture(def.file) end
+	pcall(button.SetIcon, button, tex)
+	-- Tid kvar: svep utan siffror
+	local cd = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+	cd:SetAllPoints()
+	pcall(cd.SetHideCountdownNumbers, cd, true)
+	pcall(cd.SetDrawEdge, cd, false)
+	if not pcall(button.SetDurationCooldown, button, cd) then cd:Hide() end
+	-- Ram som blinkar: knappen finns bara medan buffen är uppe, så ramen behöver inget värde
+	local glow = CreateFrame("Frame", nil, button)
+	glow:SetPoint("CENTER", button, "CENTER")
+	glow:SetSize(size * 1.7, size * 1.7)
+	glow:SetFrameLevel(button:GetFrameLevel() + 2)
+	local gt = glow:CreateTexture(nil, "OVERLAY")
+	gt:SetAllPoints()
+	gt:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+	pcall(gt.SetBlendMode, gt, "ADD")
+	gt:SetVertexColor(0.4, 0.8, 1)
+	table.insert(box.glows, { frame = glow, pulse = addPulse(glow) })
+	-- Laddningarna: spelets eget tal (visas från 2, som vår ikon)
+	local num = CreateFrame("Frame", nil, button)
+	num:SetAllPoints(button)
+	num:SetFrameLevel(button:GetFrameLevel() + 3)
+	local fs = num:CreateFontString(nil, "OVERLAY", "NumberFontNormalLarge")
+	fs:SetPoint("BOTTOMRIGHT", -2, 2)
+	pcall(button.SetApplicationCount, button, fs)
+	pcall(fs.SetFontObject, fs, ns.Theme.Font("FarseerFontCount"))
+	ns.Theme.Border(num, { 0, 0, 0, 1 }, "OVERLAY", 0)
+	box.button = button
+	PC:FlashProcBox(def.key)
+	PC.dirty = true
+end
+
+function PC:SetupProcBox(def)
+	local cur = procBox[def.key]
+	if cur ~= nil then return cur end
+	if not frame or InCombatLockdown() or aurasSecret() then return nil end
+	if not (def.box and cfg()[def.cfg]) then return nil end
+	local ids, any = {}, false
+	for _, id in ipairs(def.ids or {}) do ids[id] = true; any = true end
+	if not any then return nil end
+	local box = { glows = {} }
+	local ok, err = pcall(function()
+		local f = icons[def.key]
+		local c = CreateFrame("AuraContainer", nil, frame, "CustomAuraContainerTemplate")
+		box.container = c
+		c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+		c:SetSize(f:GetWidth(), f:GetHeight())
+		c:SetFrameStrata(frame:GetFrameStrata())
+		c:SetFrameLevel(f:GetFrameLevel() + 5)
+		c:SetUnit("player")
+		noMouse(c)
+		c:AddAuraSlot(def.key, "HELPFUL", {
+			candidateFilters = { includeSpellIDs = ids },
+			initializeFrame = function(button)
+				local ok2, e2 = pcall(initProcButton, box, def, button)
+				if not ok2 then ns.report(def.name .. " container button: " .. tostring(e2)) end
+			end,
+		})
+	end)
+	if not ok then
+		if box.container then pcall(box.container.Hide, box.container) end
+		procBox[def.key] = false
+		procBoxError[def.key] = tostring(err)
+		return false
+	end
+	procBox[def.key] = box
+	return box
+end
+
+function PC:SetupProcBoxes()
+	for _, def in ipairs(PROCS) do
+		if def.box then self:SetupProcBox(def) end
+	end
+end
+
+function PC:ResetProcBoxes()
+	if InCombatLockdown() then return false end
+	for key, box in pairs(procBox) do
+		if box and box.container then pcall(box.container.Hide, box.container) end
+		procBox[key] = nil
+	end
+	wipe(procBoxError)
+	return true
+end
+
+-- Containern för en proc när spelet har gett den en knapp
+function PC:ProcBox(key)
+	local box = procBox[key]
+	return box and box.button and box or nil
+end
+function PC:ProcBoxState(key)
+	local box = procBox[key]
+	if box == nil then return "not built" end
+	if box == false then return "unavailable: " .. tostring(procBoxError[key]) end
+	return box.button and "active" or "waiting for the buff"
+end
+
+-- Kan buffen komma? Den har setts förut med den här specen, eller talangen finns i spellboken.
+function PC:ProcExpected(def)
+	if ns.char.procSeen and ns.char.procSeen[def.key] then return true end
+	return def.talent ~= nil and ns.Spellbook:Knows(def.talent) == true
+end
+
+function PC:FlashProcBox(key)
+	local box = procBox[key]
+	if not box then return end
+	local def = procDef(key)
+	local on = def and def.flash and flashOn() or false
+	for _, g in ipairs(box.glows) do
+		pcall(g.frame.SetShown, g.frame, on)
+		if g.pulse then pcall(g.pulse.Set, g.pulse, on) end
+	end
+end
+
+function PC:StyleProcBoxes()
+	if InCombatLockdown() then return end
+	for _, def in ipairs(PROCS) do
+		local box = procBox[def.key]
+		if box then
+			local f = icons[def.key]
+			pcall(box.container.SetShown, box.container, cfg()[def.cfg] and true or false)
+			self:FlashProcBox(def.key)
+			local size = f:GetWidth()
+			if type(size) == "number" and size > 0 then
+				pcall(box.container.SetSize, box.container, size, size)
+				if box.button then pcall(box.button.SetSize, box.button, size, size) end
+				for _, g in ipairs(box.glows) do pcall(g.frame.SetSize, g.frame, size * 1.7, size * 1.7) end
+			end
+		end
+	end
+end
 function PC:ShieldBoxState()
 	if shBox == nil then return "not built" end
 	if shBox == false then return "unavailable: " .. tostring(PC.shBoxError) end
@@ -1163,11 +1375,16 @@ function PC:StyleShieldBox()
 	if box.button then pcall(box.button.SetSize, box.button, size, size) end
 end
 
+-- Returnerar skölden, laddningar, rått secret-värde, och true som fjärde värde när auran inte gick att
+-- läsa (då är skölden den senast kända: läst före striden eller castad i den)
 function PC:Shield()
+	local unknown = false
 	for _, s in ipairs(ns.SHIELDS) do
 		if ns.Spellbook:Knows(s) then
-			local a = playerAura(ns.SHIELD_IDS[s], s, shieldInstance[s])
+			local a, blocked = playerAura(ns.SHIELD_IDS[s], s, shieldInstance[s])
+			if blocked then unknown = true end
 			if present(a) then
+				lastShield = s
 				shieldInstance[s] = instanceOf(a) or shieldInstance[s]
 				local n, raw = applications(a)
 				-- 0 stacks på en aura som finns = klienten räknar inte laddningar: visa skölden utan siffra
@@ -1180,9 +1397,12 @@ function PC:Shield()
 			end
 		end
 	end
+	if unknown then return lastShield or nil, nil, nil, true end
 	wipe(shieldInstance)
+	lastShield = false
 	return nil
 end
+function PC:LastShield() return lastShield end
 
 function PC:UpdateShield()
 	local f = icons.shield
@@ -1191,7 +1411,27 @@ function PC:UpdateShield()
 		if ns.Reminders.SetShieldCharges then ns.Reminders:SetShieldCharges(nil) end
 		return
 	end
-	local s, n, raw = self:Shield()
+	local s, n, raw, unknown = self:Shield()
+	local box = self:ShieldBox()
+	if unknown and box then
+		-- I strid: spelets knapp visar skölden när den är uppe; under den en blek ikon = ingen sköld.
+		-- Platsen står kvar så att knappen inte hamnar ovanpå en annan ikon.
+		local shown = s
+		if not shown then
+			for _, x in ipairs(ns.SHIELDS) do if ns.Spellbook:Knows(x) then shown = x break end end
+		end
+		f.icon:SetTexture(ns.spellIcon(shown or "Lightning Shield"))
+		f.icon:SetDesaturated(true)
+		f.icon:SetAlpha(0.35)
+		f.title = shown or "Shield"
+		f.count:SetText("")
+		f.glow:Off()
+		setShown(f, true)
+		if ns.Reminders.SetShieldCharges then ns.Reminders:SetShieldCharges(nil) end
+		return
+	end
+	f.icon:SetDesaturated(false)
+	f.icon:SetAlpha(1)
 	if not s then
 		setShown(f, false)
 		if ns.Reminders.SetShieldCharges then ns.Reminders:SetShieldCharges(nil) end
@@ -1201,7 +1441,6 @@ function PC:UpdateShield()
 	f.icon:SetTexture(ns.spellIcon(s))
 	f.title = s
 	setShown(f, true)
-	local box = self:ShieldBox()
 	if box then
 		-- Spelet skriver talet och visar det röda; vi byter bara ikonen på täckbilden
 		setCoverIcon(box, s)
@@ -1295,8 +1534,11 @@ PC.Ready = function(_, spell) return ready(spell) end
 function PC:ManaAdvice()
 	if ready("Mana Tide Totem") then return "Mana Tide Totem", "Drop Mana Tide Totem (restores your group's mana over 12 s)." end
 	if ns.Spellbook:Knows("Water Shield") then
-		local a = playerAura(ns.SHIELD_IDS["Water Shield"], "Water Shield")
-		if not present(a) then return "Water Shield", "Switch to Water Shield — it gives mana when you're hit." end
+		local a, blocked = playerAura(ns.SHIELD_IDS["Water Shield"], "Water Shield")
+		-- Går auran inte att läsa (strid) gäller den senast kända skölden; ingen känd = inget råd
+		local up = present(a) or (blocked and lastShield == "Water Shield")
+		local knownOff = (not blocked and not present(a)) or (blocked and lastShield ~= nil and lastShield ~= "Water Shield")
+		if not up and knownOff then return "Water Shield", "Switch to Water Shield — it gives mana when you're hit." end
 	end
 	if ns.Spellbook:Knows("Mana Spring Totem") and not ns.Totems:Active("Mana Spring Totem") then
 		return "Mana Spring Totem", "Drop Mana Spring Totem."
@@ -1626,6 +1868,8 @@ function PC:Refresh()
 	self:StyleMaelstromBox()
 	self:SetupShieldBox()
 	self:StyleShieldBox()
+	self:SetupProcBoxes()
+	self:StyleProcBoxes()
 	self:Update()
 end
 
@@ -1677,12 +1921,29 @@ function PC:OnShamanLogin()
 		PC:StyleMaelstromBox()
 		PC:SetupShieldBox()
 		PC:StyleShieldBox()
+		PC:SetupProcBoxes()
+		PC:StyleProcBoxes()
+	end)
+	-- Ny spec: buffar som setts förut kanske inte kommer längre
+	ns.listen("SPEC_CHANGED", function(_, first)
+		if not first and ns.char then ns.char.procSeen = {} end
 	end)
 	ns.on("SPELLS_CHANGED", function()
 		if not InCombatLockdown() then
 			PC:SetupMaelstromBox(); PC:StyleMaelstromBox()
 			PC:SetupShieldBox(); PC:StyleShieldBox()
+			PC:SetupProcBoxes(); PC:StyleProcBoxes()
 		end
+	end)
+	-- En encounter- eller PvP-låsning kan släppa efter striden: containrarna byggs när aurorna öppnas
+	-- (händelsen kommer efter att låsningen släppt; en kort väntan så att C_Secrets hunnit ändras)
+	ns.on("ADDON_RESTRICTION_STATE_CHANGED", function()
+		C_Timer.After(0.2, function()
+			if InCombatLockdown() or aurasSecret() then return end
+			PC:SetupMaelstromBox(); PC:StyleMaelstromBox()
+			PC:SetupShieldBox(); PC:StyleShieldBox()
+			PC:SetupProcBoxes(); PC:StyleProcBoxes()
+		end)
 	end)
 	ns.listen("BARS_LAYOUT", function() PC:Layout() end)
 	ns.listen("PROCS_CHANGED", function() PC:Refresh() end)

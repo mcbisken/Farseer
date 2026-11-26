@@ -212,8 +212,8 @@ test("situationsknappar och Call of the Elements", function()
 	local base = (12 - 1) * 12
 	for _, name in ipairs(s.totems) do
 		local slot = MOCK.TOTEM_SLOT[name]
-		local offset = ({ [2] = 1, [1] = 2, [3] = 3, [4] = 4 })[slot] -- baren: Earth, Fire, Water, Air
-		check(MOCK.multicast[base + offset] == MOCK.known[name], "Call-slot " .. slot .. " = " .. name)
+		-- actionslot = sidan + totemslotten (Blizzards MultiCastActionBarFrame.lua: pageOffset + slot)
+		check(MOCK.multicast[base + slot] == MOCK.known[name], "Call-slot " .. slot .. " = " .. name)
 	end
 	check(ns.Bars:LoadedIndex() == 1, "set 1 laddat")
 	-- alla standardsituationer: max ett per element

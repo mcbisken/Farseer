@@ -323,6 +323,8 @@ function RE:Check()
 	local mainWeapon = hasWeapon()
 	if mainWeapon then
 		local has, left = self:Imbue()
+		-- Runt en laddningsskärm kan imbuen läsas tom: det gamla läget gäller (ShamanForever_Imbue.lua)
+		if has == false and status.imbue == true and ns.zoning() then has = nil end
 		if has ~= nil then status.imbue, status.imbueLeft = has, left end
 	end
 	if cfg.imbue and imbueBtn.spell and mainWeapon then
@@ -337,6 +339,7 @@ function RE:Check()
 	-- Vapenbyte i strid: knappen kan inte döljas förrän striden är slut, men den lyser inte utan vapen
 	if cfg.offhand ~= false and offActive and offBtn.spell and self:OffhandWeapon() ~= false then
 		local has, left = self:OffhandImbue()
+		if has == false and status.off == true and ns.zoning() then has = nil end
 		if has ~= nil then status.off, status.offLeft = has, left end
 		local low = status.off and status.offLeft and status.offLeft < self:ImbueThreshold("off", base)
 		local need = status.off == false or low

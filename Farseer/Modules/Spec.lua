@@ -1,5 +1,9 @@
--- Spec: Forever har ingen GetSpecialization, så specen läses av från talangpoängen (flikarna
--- Elemental/Enhancement/Restoration), och annars från talanger som bara en spec har (Stormstrike ...).
+-- Spec: specen läses av från talangpoängen per träd (Elemental/Enhancement/Restoration), och annars från
+-- talanger som bara en spec har (Stormstrike ...).
+-- Forever (1.60.1) har ingen GetTalentTabInfo (bara med CVar loadDeprecationFallbacks). Blizzards egen
+-- talangruta (Blizzard_PlayerSpells/Camelot) läser poängen så här: aktiv config -> trädet -> grupperna
+-- (ett per träd) -> C_Traits.GetGroupCurrencyInfo(...).currencyInfos[1].spent. Samma ordning här, sedan
+-- C_SpecializationInfo.GetSpecializationInfo (pointsSpent) och sist GetTalentTabInfo.
 -- När specen byts (utanför strid) byter Farseer BiS-spec och laddar profilen du kopplat till den.
 
 local _, ns = ...
@@ -7,9 +11,69 @@ local SP = ns.module("Spec")
 
 local function cfg() return ns.char.spec end
 
+-- Trädets plats (1 ele, 2 enh, 3 resto) från namnet, annars från ordningen
+local function treeIndex(name, order)
+	if type(name) == "string" then
+		local l = name:lower()
+		if l:find("elemental", 1, true) then return 1 end
+		if l:find("enhancement", 1, true) then return 2 end
+		if l:find("restoration", 1, true) then return 3 end
+	end
+	return order
+end
+
+-- 1. Talangträdet (C_Traits), som Forevers egen talangruta
+local function traitPoints()
+	if not (C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_Traits and C_Traits.GetConfigInfo
+		and C_Traits.GetGroupDisplayInfoByTreeID and C_Traits.GetGroupCurrencyInfo) then return nil end
+	local configID = ns.get(C_ClassTalents.GetActiveConfigID)
+	if type(configID) ~= "number" then return nil end
+	local info = ns.get(C_Traits.GetConfigInfo, configID)
+	local treeID = type(info) == "table" and type(info.treeIDs) == "table" and info.treeIDs[1]
+	if type(treeID) ~= "number" then return nil end
+	local displays = ns.get(C_Traits.GetGroupDisplayInfoByTreeID, treeID)
+	if type(displays) ~= "table" or #displays == 0 then return nil end
+	local list, ids = {}, {}
+	for _, di in ipairs(displays) do
+		if type(di) == "table" and type(di.groupID) == "number" then table.insert(list, di) end
+	end
+	table.sort(list, function(a, b) return (tonumber(a.orderIndex) or 0) < (tonumber(b.orderIndex) or 0) end)
+	for i, di in ipairs(list) do ids[i] = di.groupID end
+	local groups = ns.get(C_Traits.GetGroupCurrencyInfo, configID, ids)
+	if type(groups) ~= "table" then return nil end
+	local spent = {}
+	for _, g in ipairs(groups) do
+		local c = type(g) == "table" and type(g.currencyInfos) == "table" and g.currencyInfos[1]
+		if type(c) == "table" and type(c.spent) == "number" then spent[g.traitNodeGroupID] = c.spent end
+	end
+	local pts, any = { 0, 0, 0 }, false
+	for order, di in ipairs(list) do
+		local idx = treeIndex(di.displayName, order)
+		if idx and idx <= 3 and spent[di.groupID] then pts[idx] = spent[di.groupID]; any = true end
+	end
+	return any and pts or nil
+end
+
+-- 2. Specialiseringarna (pointsSpent är 7:e värdet)
+local function specInfoPoints()
+	local f = C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo
+	if not f then return nil end
+	local pts, any = { 0, 0, 0 }, false
+	for i = 1, 3 do
+		local ok, _, name, _, _, _, _, spent = ns.getAll(f, i)
+		local idx = ok and treeIndex(name, i)
+		if idx and idx <= 3 and type(spent) == "number" then pts[idx] = spent; any = true end
+	end
+	return any and pts or nil
+end
+
 -- Poäng per talangflik { ele, enh, resto }, eller nil om det inte går att läsa
 function SP:TalentPoints()
-	if not GetTalentTabInfo then return nil end
+	local ok, pts = pcall(traitPoints)
+	if ok and pts then return pts end
+	ok, pts = pcall(specInfoPoints)
+	if ok and pts and (pts[1] > 0 or pts[2] > 0 or pts[3] > 0) then return pts end
+	if not GetTalentTabInfo then return pts end
 	local pts, any = {}, false
 	for i = 1, 3 do
 		local ok, a, _, c, _, e = ns.getAll(GetTalentTabInfo, i)
@@ -47,12 +111,22 @@ function SP:Current() return cfg().last end
 
 -- Osatta talangpoäng (0 om det inte går att läsa)
 local function unspent()
+	-- Forever: C_ClassTalents.HasUnspentTalentPoints() -> har, klasspoäng, specpoäng
+	if C_ClassTalents and C_ClassTalents.HasUnspentTalentPoints then
+		local ok, has, a, b = ns.getAll(C_ClassTalents.HasUnspentTalentPoints)
+		if ok and (type(a) == "number" or type(b) == "number") then
+			return (type(a) == "number" and a or 0) + (type(b) == "number" and b or 0)
+		end
+		if ok and has == false then return 0 end
+	end
 	local f = rawget(_G, "GetUnspentTalentPoints")
 	local v = f and ns.get(f)
 	if type(v) ~= "number" and rawget(_G, "UnitCharacterPoints") then v = ns.get(UnitCharacterPoints, "player") end
 	return type(v) == "number" and v or 0
 end
 SP.Unspent = unspent
+
+function SP:Unspent() return unspent() end
 
 function SP:Check(quiet)
 	local c = cfg()

@@ -245,6 +245,7 @@ test("totems: dog i förtid / Grounding åt en spell", function()
 	settle()
 	MOCK.time = MOCK.time + 10
 	MOCK.secretMode = true
+	MOCK.totems[2] = nil
 	MOCK.fire("PLAYER_TOTEM_UPDATE", 2)
 	settle()
 	MOCK.secretMode = false

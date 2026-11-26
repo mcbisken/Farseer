@@ -118,7 +118,10 @@ local function lossOfControl()
 	for i = 1, n do
 		local d = ns.get(C.GetActiveLossOfControlData, i)
 		local t = ns.field(d, "locType")
-		if t and ns.TREMOR_LOC_TYPES[t] then return true, ns.field(d, "displayText") end
+		local id = ns.field(d, "spellID")
+		if t and ns.TREMOR_LOC_TYPES[t] and not (id and ns.TREMOR_LOC_IGNORE[id]) then
+			return true, ns.field(d, "displayText")
+		end
 	end
 	return false
 end

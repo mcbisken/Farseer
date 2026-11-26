@@ -100,6 +100,9 @@ test("procs: Windfury", function()
 end)
 
 test("procs: låg mana", function()
+	-- Skölden läses före striden (i strid går auran inte att läsa)
+	MOCK.combat = false
+	ns.Procs:UpdateShield()
 	MOCK.combat = true
 	MOCK.mana = { 900, 1000 }
 	ns.Procs:CheckMana()
@@ -555,11 +558,11 @@ test("granskning: profiler behåller tabeller, återställning, delade makron", 
 	check(ns.trim(GetMacroBody(name)) == "/say gammalt", "auto rör inte andras kontomakron")
 	check(ns.MacroEngine:RefreshExisting() > 0 and ns.trim(GetMacroBody(name)) ~= "/say gammalt", "manuell uppdatering tar över")
 	check(ns.MacroEngine:OwnsAccountMacros(), "äger kontomakron efter manuell uppdatering")
-	-- Call-setets ordning: Earth, Fire, Water, Air
-	check(ns.Totems:SlotOffset(ns.SLOT.EARTH) == 1 and ns.Totems:SlotOffset(ns.SLOT.FIRE) == 2
+	-- Call-setets actionslot är totemslotten (visningsordningen påverkar inte)
+	check(ns.Totems:SlotOffset(ns.SLOT.EARTH) == 2 and ns.Totems:SlotOffset(ns.SLOT.FIRE) == 1
 		and ns.Totems:SlotOffset(ns.SLOT.WATER) == 3 and ns.Totems:SlotOffset(ns.SLOT.AIR) == 4, "multicast-ordning")
 	rawset(_G, "TOTEM_PRIORITIES", { 1, 2, 3, 4 })
-	check(ns.Totems:SlotOffset(ns.SLOT.EARTH) == 2, "klientens TOTEM_PRIORITIES används")
+	check(ns.Totems:SlotOffset(ns.SLOT.EARTH) == 2, "visningsordningen ändrar inte actionslotten")
 	rawset(_G, "TOTEM_PRIORITIES", nil)
 	-- Bekräftelse med % i texten
 	ns.UI.Confirm("Ta bort 100% av \"x\"?", function() end)

@@ -36,6 +36,9 @@ function RP:Lines()
 	local PC = ns.Procs
 	add("Aura container (Maelstrom): %s", PC and PC:MaelstromBoxState() or "?")
 	add("Aura container (shield): %s", PC and PC.ShieldBoxState and PC:ShieldBoxState() or "?")
+	add("Aura container (Clearcasting / Flurry): %s / %s", PC and PC.ProcBoxState and PC:ProcBoxState("clearcast") or "?",
+		PC and PC.ProcBoxState and PC:ProcBoxState("flurry") or "?")
+	add("Auras locked now: %s", tostring(PC and PC.aurasSecret and PC.aurasSecret()))
 	local pf = rawget(_G, "FarseerProcs")
 	add("Procs frame protected (aura containers): %s", pf and pf.IsProtected and tostring(ns.get(pf.IsProtected, pf)) or "?")
 	add("Call with any set in combat: %s", ns.Bars and ns.Bars.combatCallState or "?")

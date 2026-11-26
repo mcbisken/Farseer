@@ -47,6 +47,8 @@ end
 MOCK.newWidget = newWidget
 
 function Widget:SetScript(k, fn) self.__scripts[k] = fn end
+function Widget:SetAlpha(a) self.__alpha = a end
+function Widget:GetAlpha() return self.__alpha or 1 end
 function Widget:GetScript(k) return self.__scripts[k] end
 -- Som i spelet: kroken körs efter det befintliga scriptet
 function Widget:HookScript(k, fn)
@@ -310,7 +312,7 @@ function GetTotemInfo(slot)
 	if not t then return S(false), S(""), S(0), S(0), S(0) end
 	return S(true), S(t.name), S(t.start), S(t.dur), S(1000)
 end
-function GetTotemDuration(slot) return { slot = slot } end
+function GetTotemDuration(slot) if MOCK.totems[slot] then return { slot = slot } end return nil end   -- som klienten: nil för en tom slot
 function DestroyTotem() end
 
 ---------------------------------------------------------------------------------------------------
@@ -526,4 +528,22 @@ end
 C_Spell.GetSpellPowerCost = function(id)
 	if MOCK.secretMode then return SECRET end
 	return { { type = 0, cost = MOCK.manaCost and MOCK.manaCost[id] or 100 } }
+end
+
+---------------------------------------------------------------------------------------------------
+-- v2.4: Forever låser aurorna i strid: varje läsning kastar ett fel, även dina egna buffar
+-- (forever-addon-kit BUG_REPORTS.md "Post 4"). MOCK.auraLock = true efterliknar det.
+---------------------------------------------------------------------------------------------------
+MOCK.auraLock = false
+for k, fn in pairs(C_UnitAuras) do
+	if type(fn) == "function" then
+		C_UnitAuras[k] = function(...)
+			if MOCK.auraLock then error("Auras cannot be accessed when secret while tainted") end
+			return fn(...)
+		end
+	end
+end
+do
+	local should = C_Secrets.ShouldAurasBeSecret
+	C_Secrets.ShouldAurasBeSecret = function() return MOCK.auraLock or should() end
 end

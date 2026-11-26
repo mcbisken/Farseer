@@ -56,7 +56,7 @@ ns.IMBUES = { "Windfury Weapon", "Flametongue Weapon", "Frostbrand Weapon", "Roc
 -- Kända spell-ID:n (från klientdata, för självtest och reserv när namnuppslag misslyckas)
 ns.SPELL_IDS = {
 	["Lightning Shield"] = { 324, 325, 905, 945, 8134, 10431, 10432 },
-	["Water Shield"] = { 408510 },
+	["Water Shield"] = { 408510, 408511 },   -- 408511: klientens andra Water Shield (ShamanForever)
 	["Earth Shock"] = { 8042 },
 	["Flame Shock"] = { 8050, 8052, 8053, 10447, 10448, 29228 },
 	["Frost Shock"] = { 8056, 8058, 10472, 10473 },
@@ -153,7 +153,7 @@ ns.MAELSTROM_MAX = 5
 ns.SHIELD_CHARGES = 3
 ns.SHIELD_IDS = {
 	["Lightning Shield"] = { 324, 325, 905, 945, 8134, 10431, 10432 },
-	["Water Shield"] = { 408510 },
+	["Water Shield"] = { 408510, 408511 },   -- 408511: klientens andra Water Shield (ShamanForever)
 }
 
 -- Windfury-procs: spell-ID:n som får en cooldown när Windfury slår (ShamanForever). 439431 är
@@ -176,10 +176,10 @@ ns.TOTEM_BUFFS = {
 	["Grace of Air Totem"] = { name = "Grace of Air", ids = { 8836, 10626, 25360 } },
 	["Nature Resistance Totem"] = { name = "Nature Resistance", ids = { 10596, 10598, 10599 } },
 	["Windwall Totem"] = { name = "Windwall", ids = { 15108, 15109, 15110 } },
-	-- Forever: Windfury och Flametongue Totem är buffar (sedan 15/10). ID:n okända: matchas på namnet, och
-	-- räckviddsvarningen kommer först när buffen har setts en gång.
-	["Windfury Totem"] = { name = "Windfury Totem", ids = {} },
-	["Flametongue Totem"] = { name = "Flametongue Totem", ids = {} },
+	-- Forever: Windfury och Flametongue Totem är buffar (sedan 15/10). ID:n från ShamanForever 0.16.8
+	-- (ShamanForever_TotemRange.lua); namnet matchas också.
+	["Windfury Totem"] = { name = "Windfury Totem", ids = { 8515, 10609, 10612 } },
+	["Flametongue Totem"] = { name = "Flametongue Totem", ids = { 8230, 8250, 10521, 15036 } },
 }
 
 -- Spec: talangflikarnas ordning och talanger som avslöjar specen (om talangpoängen inte går att läsa)

@@ -228,7 +228,8 @@ function ns.setSpellCooldown(cd, spell)
 		end
 	end
 	if C_Spell and C_Spell.GetSpellCooldownDuration and cd.SetCooldownFromDurationObject then
-		local ok, d = pcall(C_Spell.GetSpellCooldownDuration, id)
+		-- true = utan global cooldown (annars sveper varje cast alla ikoner; ShamanForever 0.6.1/0.13.0)
+		local ok, d = pcall(C_Spell.GetSpellCooldownDuration, id, true)
 		if ok and d then pcall(cd.SetCooldownFromDurationObject, cd, d, true) end
 	end
 end

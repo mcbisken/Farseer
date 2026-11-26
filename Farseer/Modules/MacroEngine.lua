@@ -285,15 +285,31 @@ end
 
 -- Kontomakron delas av alla karaktärer: de uppdateras automatiskt bara för den karaktär som senast
 -- skapade/uppdaterade dem för hand, så att en annan shaman (annan level/ras) inte skriver över dem.
-local function me()
+-- Nyckeln är karaktärens GUID: realmnamnet kan läsas tomt efter en uppdatering och namnet "Unknown"
+-- precis vid inloggningen (ShamanForever 0.17.1). Gamla nycklar (namn-realm) godtas och byts ut.
+local function legacy()
 	local n, r = ns.get(UnitName, "player"), ns.get(GetRealmName)
-	return tostring(n or "?") .. "-" .. tostring(r or "?")
+	if type(n) ~= "string" or n == "" or n == (UNKNOWNOBJECT or "Unknown") then return nil end
+	return n .. "-" .. tostring(r or "?")
 end
-function ME:ClaimAccountMacros() ns.db.macros.owner = me() end
+local function me()
+	local g = ns.get(UnitGUID, "player")
+	if type(g) == "string" and g:find("^Player%-") then return g end
+	return legacy()
+end
+function ME:ClaimAccountMacros()
+	local key = me()
+	if key then ns.db.macros.owner = key end
+end
 function ME:OwnsAccountMacros()
 	local o = ns.db.macros.owner
 	if o == nil then self:ClaimAccountMacros() return true end
-	return o == me()
+	local key = me()
+	if not key then return false end
+	if o == key then return true end
+	local old = legacy()
+	if old and o == old then ns.db.macros.owner = key return true end
+	return false
 end
 
 -- Uppdatera alla Farseer-makron som redan finns (t.ex. efter level-up eller ändrade inställningar).

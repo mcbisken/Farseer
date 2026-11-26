@@ -30,19 +30,49 @@ local function setSlot(slot, name, start, dur)
 	state[slot] = { name = name, start = start or GetTime(), dur = dur or defaultDur(name) }
 end
 
+-- Står det ett totem i slotten? GetTotemDuration ger ett objekt för en upptagen slot och nil för en tom,
+-- och har ingen secret-regel (läsbart i strid). nil = går inte att avgöra.
+-- Ett objekt som läsbart mäter noll räknas som tom slot (dokumentationen säger inte att nil är möjligt).
+local function liveDuration(slot)
+	if not GetTotemDuration then return nil, false end
+	local ok, d = pcall(GetTotemDuration, slot)
+	if not ok then return nil, false end
+	if d == nil then return nil, true end
+	if type(d) ~= "table" and type(d) ~= "userdata" then return nil, false end
+	local zok, zero = pcall(function() return d:IsZero() end)
+	if zok and not ns.isSecret(zero) and zero == true then return nil, true end
+	return d, true
+end
+local function occupied(slot)
+	local d, known = liveDuration(slot)
+	if not known then return nil end
+	return d ~= nil
+end
+TO.Occupied = occupied
+
 -- Läs klientens slot. Returnerar true om läsningen gick (inte secret). Andra värdet: true när klienten
 -- säger att ett totem står där men namnet inte går att läsa.
 function TO:ReadSlot(slot)
 	if not GetTotemInfo then return false end
-	local ok, have, name, start, dur = ns.getAll(GetTotemInfo, slot)
-	if not ok or have == nil then return false end
+	local ok, have, name, start, dur, _, _, sid = ns.getAll(GetTotemInfo, slot)
+	if not ok or have == nil then
+		-- Oläsbar slot: duration-objektet säger ändå om något står där
+		return false, occupied(slot) == true
+	end
 	-- Tom slot bara när klienten säger det: ett totem vars namn inte går att läsa (secret) är inte borta
 	if have == false then
 		state[slot] = nil
 		return true
 	end
+	-- Slottens spell-ID före namnet: precis efter en cast kan namnet fortfarande vara det förra totemets
+	-- (ShamanForever_Totems.lua). Och står din egen nyss castade post där, behålls den.
+	if type(sid) == "number" and sid > 0 then
+		name = baseName(ns.get(C_Spell.GetSpellName, sid)) or name
+	end
 	name = baseName(name)
-	if not name or name == "" then return false, have == true end
+	if not name or name == "" then return false, have == true or occupied(slot) == true end
+	local s = state[slot]
+	if s and s.name ~= name and GetTime() - (lastCast[slot] or -100) < 1 then return true end
 	if start and dur and dur > 0 then
 		setSlot(slot, name, start, dur)
 		if not InCombatLockdown() then ns.char.learnedDur[name] = math.floor(dur + 0.5) end
@@ -119,9 +149,10 @@ function TO:CheckDeath(slot, prev)
 	if ns.get(UnitIsDeadOrGhost, "player") == true then return end
 	if now - lastZone < 5 or ns.get(UnitOnTaxi, "player") == true then return end   -- laddningsskärm/taxi
 	-- Går slotten att läsa och står det ett totem där är allt som det ska: samma totem, eller ett nytt
-	-- av samma element som ersatte det (bara ditt eget totem kan stå i din slot)
+	-- av samma element som ersatte det (bara ditt eget totem kan stå i din slot). I strid avgör
+	-- duration-objektet (läsbart även när resten är secret).
 	local readable, standing = self:ReadSlot(slot)
-	if (readable and state[slot]) or standing then return end
+	if (readable and state[slot]) or standing or occupied(slot) == true then return end
 	state[slot] = nil
 	self:UpdateBar()
 	ns.fire("TOTEMS_CHANGED")
@@ -300,10 +331,16 @@ local function memberOK(u)
 	if ns.get(UnitExists, u) ~= true then return false end
 	if ns.get(UnitIsConnected, u) == false then return false end
 	if ns.get(UnitIsDeadOrGhost, u) ~= false then return false end
+	-- UnitInRange är alltid secret i Forever (SecretReturns i API-dokumentationen): då mäts avståndet med
+	-- Healing Wave (40 m, C_Spell.IsSpellInRange är aldrig secret), samma avstånd som UnitInRange
 	local ok, inRange, checked = ns.getAll(UnitInRange, u)
-	if not ok or inRange ~= true or checked == false then return false end
-	return true
+	if ok and inRange ~= nil then
+		return inRange == true and checked ~= false
+	end
+	local hw = C_Spell and C_Spell.IsSpellInRange and ns.get(C_Spell.IsSpellInRange, ns.L("Healing Wave"), u)
+	return hw == true or hw == 1
 end
+TO.MemberOK = memberOK
 
 -- Lista med { totem, slot, missing = { namn } } (bara totems där någon saknar buffen), {} om alla har
 -- den, nil om det inte går att avgöra (i strid, secret auror, avstängt)
@@ -371,8 +408,9 @@ local function coverageTooltip(self)
 	GameTooltip:Show()
 end
 
--- Multicast-baren har knapparna i ordningen Earth, Fire, Water, Air (Blizzards TOTEM_PRIORITIES),
--- inte i totemslot-ordning (Fire=1, Earth=2, Water=3, Air=4). Klientens egen tabell används om den finns.
+-- Ordningen knapparna RITAS i på Blizzards multicast-bar (Earth, Fire, Water, Air). Bara för visning:
+-- actionslotten är alltid sidan + totemslotten (Blizzard_ActionBar/Shared/MultiCastActionBarFrame.lua:
+-- "actionId = pageOffset + slot"; ShamanForever gör likadant och är testat i klienten).
 local WRATH_ORDER = { 2, 1, 3, 4 }
 function TO:SlotOrder()
 	-- Shamanens egen ordning först (den allmänna kan vara 1,2,3,4); bara en riktig permutation av 1-4 godtas
@@ -391,11 +429,8 @@ function TO:SlotOrder()
 	return WRATH_ORDER
 end
 
--- Plats (1-4) i multicast-setet för en totemslot
+-- Plats (1-4) i multicast-setet för en totemslot: samma som slotten (se ovan)
 function TO:SlotOffset(slot)
-	for i, s in ipairs(self:SlotOrder()) do
-		if s == slot then return i end
-	end
 	return slot
 end
 
@@ -656,14 +691,28 @@ function TO:UpdateBar()
 	expire()
 	for slot, b in pairs(buttons) do
 		local s = state[slot]
-		if s then
+		local d = liveDuration(slot)
+		if not s and d and b.cd.SetCooldownFromDurationObject then
+			-- Ett totem vi inte vet namnet på (t.ex. lagt med Call i strid): spelets ikon och nedräkning,
+			-- båda tar emot secret värden (ikonen jämförs aldrig: den kan vara secret)
+			local okI, _, _, _, _, icon = pcall(GetTotemInfo, slot)
+			local drawn = false
+			if okI and (ns.isSecret(icon) or type(icon) == "number" or type(icon) == "string") then
+				drawn = pcall(b.icon.SetTexture, b.icon, icon)
+			end
+			if not drawn then b.icon:SetTexture(nil) end
+			b.icon:SetDesaturated(false)
+			b:SetAlpha(1)
+			pcall(b.cd.SetCooldownFromDurationObject, b.cd, d)
+			pcall(b.cd.SetHideCountdownNumbers, b.cd, false)
+		elseif s then
+			pcall(b.cd.SetHideCountdownNumbers, b.cd, true)
 			b.icon:SetTexture(ns.spellIcon(s.name))
 			b.icon:SetDesaturated(false)
 			b:SetAlpha(1)
 			local done = false
-			if GetTotemDuration and b.cd.SetCooldownFromDurationObject then
-				local ok, d = pcall(GetTotemDuration, slot)
-				if ok and d then done = pcall(b.cd.SetCooldownFromDurationObject, b.cd, d) end
+			if d and b.cd.SetCooldownFromDurationObject then
+				done = pcall(b.cd.SetCooldownFromDurationObject, b.cd, d)
 			end
 			if not done then pcall(b.cd.SetCooldown, b.cd, s.start, s.dur) end
 		else

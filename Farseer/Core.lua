@@ -137,6 +137,10 @@ function ns.timed(name, fn)
 end
 
 -- ns.on(event, fn): fn(event, ...). Okända händelser kastar i Forever, så registreringen skyddas.
+-- Laddningsskärm: strax före och efter kan klienten läsa tomt (totems, vapen-imbues)
+local zoneAt = -100
+function ns.zoning(window) return GetTime() - zoneAt < (window or 3) end
+
 function ns.on(event, fn)
 	if not handlers[event] then
 		local ok = pcall(eventFrame.RegisterEvent, eventFrame, event)
@@ -147,7 +151,10 @@ function ns.on(event, fn)
 	return true
 end
 
+eventFrame:RegisterEvent("PLAYER_LEAVING_WORLD")
+eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:SetScript("OnEvent", function(_, event, ...)
+	if event == "PLAYER_LEAVING_WORLD" or event == "PLAYER_ENTERING_WORLD" then zoneAt = GetTime() end
 	local list = handlers[event]
 	if not list then return end
 	for i = 1, #list do
