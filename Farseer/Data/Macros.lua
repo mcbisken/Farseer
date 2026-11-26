@@ -38,11 +38,14 @@ add({ id = "ele_frost", cat = "Elemental", name = "FS FrostShock",
 	desc = "Frost Shock: 50% slow for 8 s. Kiting.",
 	body = "#showtooltip Frost Shock\n/cast {harm}Frost Shock" })
 add({ id = "ele_burst", cat = "Elemental", name = "FS Burst",
-	desc = "Lightning Mastery + Berserking (troll) + both trinkets, then Chain Lightning.",
+	desc = "Lightning/Elemental Mastery + Berserking (troll) + both trinkets, then Chain Lightning.",
 	build = function(ctx)
-		local first = ctx.known("Lightning Mastery") and "Lightning Mastery" or "Chain Lightning"
+		-- Talangen heter Lightning Mastery i Forevers listor och Elemental Mastery i Classic: den du har
+		local em = (ctx.known("Lightning Mastery") and "Lightning Mastery")
+			or (ctx.known("Elemental Mastery") and "Elemental Mastery")
+		local first = em or "Chain Lightning"
 		return "#showtooltip " .. first .. "\n"
-			.. (ctx.known("Lightning Mastery") and "/cast Lightning Mastery\n" or "")
+			.. (em and ("/cast " .. em .. "\n") or "")
 			.. ctx.racialCaster .. "/use 13\n/use 14\n/cast " .. ctx.harm .. "Chain Lightning"
 	end })
 add({ id = "ele_aoe", cat = "Elemental", name = "FS AoE",

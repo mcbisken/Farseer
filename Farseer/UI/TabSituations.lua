@@ -130,6 +130,23 @@ local function conflictIn(s)
 end
 ns.SituationConflict = conflictIn
 
+-- Ett totem med cooldown före ett utan: vänsterklick fastnar på det tills cooldownen är slut
+local function orderWarning(s)
+	local seenCd
+	for _, t in ipairs(s.totems or {}) do
+		if t ~= "" then
+			local cd = ns.COOLDOWN_TOTEMS and ns.COOLDOWN_TOTEMS[t]
+			if cd then
+				seenCd = seenCd or { t, cd }
+			elseif seenCd then
+				return string.format("Left-click waits while %s is on cooldown (%d s): put it last, or use its own key.",
+					(seenCd[1]:gsub(" Totem$", "")), seenCd[2])
+			end
+		end
+	end
+end
+ns.SituationOrderWarning = orderWarning
+
 function refresh()
 	if not p then return end
 	for _, b in ipairs(modeButtons) do
@@ -150,14 +167,17 @@ function refresh()
 			for d = 1, 4 do r.drops[d]:Refresh() end
 			r.hide:Refresh()
 			local dup = duplicateElements(s)
-			local clash = conflictIn(s)
+			local clash = conflictIn(s) or orderWarning(s)
 			-- Röd ram = två totems av samma element (bara det första används), orange = totems som krockar
+			-- Varningen står i beskrivningens ställe (ramen ensam säger inte vad som är fel)
 			if #dup > 0 then
 				r:SetBackdropBorderColor(1, 0.25, 0.25, 1)
 				r.num:SetText("|cffff4040" .. i .. "!|r")
+				r.desc:SetText("|cffff6060Two " .. table.concat(dup, "/") .. " totems: only the first one is used.|r")
 			elseif clash then
 				r:SetBackdropBorderColor(1, 0.6, 0.1, 1)
 				r.num:SetText("|cffffa020" .. i .. "!|r")
+				r.desc:SetText("|cffffa020" .. clash .. "|r")
 			else
 				r:SetBackdropBorderColor(0.15, 0.18, 0.25, 1)
 				r.num:SetText(i .. ".")

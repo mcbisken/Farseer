@@ -7,6 +7,8 @@
 --   * Bara Windfury och Flametongue krockar. Grace of Air staplar med båda. Tranquil Air är borttaget.
 --   * Fire Nova är en spell som exploderar vid ditt eld-totem: AoE-set behöver ett eld-totem.
 --   * Läggordning: reaktiva totems först, 5-minuterstotems sedan, Searing/Magma (kort livslängd) sist.
+--   * Totems med cooldown (Earthbind, Grounding, Stoneclaw, Mana Tide) allra sist: /castsequence väntar på
+--     ett steg som har cooldown, så de spärrar resten av setet. De har egna tangenter (FS Ground/FS Earthbind).
 -- Namnen "Melee" och "Caster" används av gruppsammansättningen (Advisor) och ska inte bytas.
 
 local _, ns = ...
@@ -38,23 +40,27 @@ ns.DEFAULT_SITUATIONS = {
 	},
 	PVP = {
 		{ name = "vs Melee", desc = "Warrior/Paladin/Feral: Earthbind to kite.",
-			totems = { "Earthbind Totem", "Healing Stream Totem", "Grace of Air Totem", "Searing Totem" } },
+			totems = { "Healing Stream Totem", "Grace of Air Totem", "Searing Totem", "Earthbind Totem" } },
 		{ name = "vs Rogue", desc = "Rogue: Poison Cleansing removes poisons, Earthbind slows, Magma pulses break stealth/Vanish.",
-			totems = { "Poison Cleansing Totem", "Earthbind Totem", "Grace of Air Totem", "Magma Totem" } },
+			totems = { "Poison Cleansing Totem", "Grace of Air Totem", "Magma Totem", "Earthbind Totem" } },
 		{ name = "vs Mage", desc = "Mage: Grounding eats Polymorph/Frostbolt, Frost Resistance, Earthbind vs Blink-kiting.",
-			totems = { "Grounding Totem", "Frost Resistance Totem", "Healing Stream Totem", "Earthbind Totem" } },
+			totems = { "Frost Resistance Totem", "Healing Stream Totem", "Grounding Totem", "Earthbind Totem" } },
 		{ name = "vs Fear", desc = "Warlock/Priest: Tremor breaks fear/charm, Grounding eats Fear/Death Coil.",
-			totems = { "Tremor Totem", "Grounding Totem", "Healing Stream Totem", "Searing Totem" } },
+			totems = { "Tremor Totem", "Healing Stream Totem", "Searing Totem", "Grounding Totem" } },
 		{ name = "vs Hunter", desc = "Hunter: Poison Cleansing vs stings, Windwall vs arrows, Earthbind.",
-			totems = { "Earthbind Totem", "Poison Cleansing Totem", "Windwall Totem", "Searing Totem" } },
+			totems = { "Poison Cleansing Totem", "Windwall Totem", "Searing Totem", "Earthbind Totem" } },
 		{ name = "Flag/Def", desc = "Defend a node/flag: Earthbind + Magma + Grounding.",
-			totems = { "Earthbind Totem", "Magma Totem", "Grounding Totem", "Healing Stream Totem" } },
+			totems = { "Magma Totem", "Healing Stream Totem", "Grounding Totem", "Earthbind Totem" } },
 		{ name = "Burst", desc = "Go on the offensive with the melee group: buffs first, Searing last.",
 			totems = { "Windfury Totem", "Strength of Earth Totem", "Mana Spring Totem", "Searing Totem" } },
 		{ name = "Healer", desc = "You are healing: Tremor, Grounding and mana.",
-			totems = { "Tremor Totem", "Grounding Totem", "Mana Spring Totem", "Searing Totem" } },
+			totems = { "Tremor Totem", "Mana Spring Totem", "Searing Totem", "Grounding Totem" } },
 	},
 }
+
+-- Totems med cooldown (sekunder): på Situationer-fliken varnas det om de står före ett totem utan
+ns.COOLDOWN_TOTEMS = { ["Earthbind Totem"] = 15, ["Grounding Totem"] = 15, ["Stoneclaw Totem"] = 30,
+	["Mana Tide Totem"] = 300 }
 
 -- Totems som inte fungerar tillsammans (samma buff-slot): varnas för på Situationer-fliken
 ns.TOTEM_CONFLICTS = {

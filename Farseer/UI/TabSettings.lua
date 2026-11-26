@@ -94,7 +94,8 @@ local function build(p)
 	local rem = ns.char.reminders
 	local c1 = track(UI.Check(p, "Remind about shield", function() return rem.shield end, function(v) rem.shield = v end))
 	c1:SetPoint("TOPLEFT", rh, "BOTTOMLEFT", 0, -6)
-	local c2 = track(UI.Check(p, "Remind about weapon imbue", function() return rem.imbue end, function(v) rem.imbue = v end))
+	local c2 = track(UI.Check(p, "Remind about weapon imbue", function() return rem.imbue end, function(v) rem.imbue = v end,
+		"Automatic: Windfury > Flametongue > Rockbiter for Enhancement. Elemental and Restoration get no imbue reminder — pick an imbue below to get one."))
 	c2:SetPoint("TOPLEFT", c1, "BOTTOMLEFT", 0, 0)
 	local c4 = track(UI.Check(p, "Remind about off-hand imbue", function() return rem.offhand ~= false end, function(v)
 		rem.offhand = v

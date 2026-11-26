@@ -164,6 +164,10 @@ end
 function RE:ImbueSpell()
 	local pick = ns.char.reminders.imbueSpell
 	if pick and pick ~= "auto" and ns.Spellbook:Knows(pick) then return pick end
+	-- Automatiskt: Elemental och Restoration har ingen nytta av en vapen-imbue i Classic (de slår inte),
+	-- så ingen påminnelse, ingen pull-varning och ingen rad i checklistan. Välj en imbue för att få den.
+	local spec = ns.Spec and ns.Spec.Current and ns.Spec:Current()
+	if spec == "elemental" or spec == "restoration" then return nil end
 	for _, s in ipairs({ "Windfury Weapon", "Flametongue Weapon", "Rockbiter Weapon" }) do
 		if ns.Spellbook:Knows(s) then return s end
 	end
@@ -375,7 +379,10 @@ function RE:OnShamanLogin()
 			ns.afterCombat("reminder-shield", function() RE:ApplySpells() end)
 		end
 	end)
-	ns.on("UNIT_INVENTORY_CHANGED", function(_, unit) if unit == "player" then RE:Check() end end)
+	ns.on("UNIT_INVENTORY_CHANGED", function(_, unit)
+		if not ns.isSecret(unit) and unit == "player" then RE:Check() end
+	end)
+	ns.listen("SPEC_CHANGED", function() RE:ApplySpells(); RE:Check() end)
 	-- Nytt vapen i main hand/off-hand: visa/dölj off-hand-knappen (väntar till efter strid vid behov)
 	ns.on("PLAYER_EQUIPMENT_CHANGED", function(_, slot)
 		slot = ns.clean(slot)

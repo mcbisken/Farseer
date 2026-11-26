@@ -205,26 +205,30 @@ test("v1.7 bossmods: timertyper, hela ord, spell-ID", function()
 	-- hela ord
 	local function totem(s) local r = BM:Match(s) return r and r.totem end
 	check(totem("Chain Lightning") == nil, "Chain Lightning: inget")
-	check(totem("Chains of Kel'Thuzad") == "Tremor Totem", "Chains of Kel'Thuzad")
+	check(totem("Chains of Kel'Thuzad") == nil, "Chains of Kel'Thuzad: mind control, Tremor hjälper inte")
 	check(totem("Fearless Charge") == nil, "Fearless: inget (inte hela ordet)")
 	check(totem("Stinger Swarm") == nil, "Stinger: inget")
 	check(totem("|cffff0000Fear|r") == "Tremor Totem", "färgkod bort")
 	check(totem("|TInterface\\Icons\\Spell_Shadow_Possession:0|t Panic") == "Tremor Totem", "textur bort")
 	check(totem("|cFF00FF00Wyvern Sting|r (2)") == "Poison Cleansing Totem", "Wyvern Sting")
 	check(totem("Plague Cloud") == "Disease Cleansing Totem", "Plague")
-	for _, s in ipairs({ "Dominate Mind", "Mind Control", "Shadow Command", "Cause Insanity", "Intimidating Shout",
-		"Psychic Scream", "Terrify", "Terrifying Screech", "Bellowing Roar", "Seduction" }) do
+	for _, s in ipairs({ "Intimidating Shout", "Psychic Scream", "Terrify", "Terrifying Screech", "Bellowing Roar",
+		"Seduction" }) do
 		check(totem(s) == "Tremor Totem", "Tremor: " .. s)
 	end
+	for _, s in ipairs({ "Dominate Mind", "Mind Control", "Shadow Command", "Cause Insanity" }) do
+		check(totem(s) == nil, "mind control, inget totem: " .. s)
+	end
+	check(BM:MatchSpell(28410) == nil and BM:MatchSpell(20604) == nil, "mind control-ID:n borta")
 	check(totem("Death Coil") == nil, "Death Coil (horror): Tremor hjälper inte")
 	check(totem("Kelris: Sleep") == "Tremor Totem", "Sleep efter kolon")
 	-- spell-ID först
 	check(BM:MatchSpell(19408) and BM:MatchSpell(19408).totem == "Tremor Totem", "Panic 19408")
 	check(BM:MatchSpell(26180) and BM:MatchSpell(26180).totem == "Poison Cleansing Totem", "Wyvern Sting 26180")
 	check(BM:MatchSpell(12345) == nil and BM:MatchSpell(SECRET) == nil and BM:MatchSpell("x") == nil, "okänt ID: nil")
-	H.DBM_TimerStart("DBM_TimerStart", "id1", "Next ability", 20, 136, "cd", 28410)
+	H.DBM_TimerStart("DBM_TimerStart", "id1", "Next ability", 20, 136, "cd", 19408)
 	check(BM:Pending("dbm:id1") and BM:Pending("dbm:id1").totem == "Tremor Totem", "ID utan nyckelord i texten")
-	H.DBM_TimerStart("DBM_TimerStart", "id2", "Plague Wave", 20, 136, "cd", 24327)
+	H.DBM_TimerStart("DBM_TimerStart", "id2", "Plague Wave", 20, 136, "cd", 18431)
 	check(BM:Pending("dbm:id2") and BM:Pending("dbm:id2").totem == "Tremor Totem", "ID går före texten")
 	H.DBM_TimerStop("DBM_TimerStop", "id1")
 	H.DBM_TimerStop("DBM_TimerStop", "id2")

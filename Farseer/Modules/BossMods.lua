@@ -9,10 +9,11 @@ local BM = ns.module("BossMods")
 -- control") matchas som en fras. Hela ord: "chains" träffar Chains of Kel'Thuzad men inte Chain Lightning.
 BM.COUNTERS = {
 	{ totem = "Tremor Totem", label = "TREMOR", color = { 1, 0.6, 0.1 },
-		-- Tremor tar bort fear, charm och sleep, inte horror (Death Coil): därför inga "horror"/"death coil"
+		-- Tremor tar bort fear, charm och sleep, inte horror (Death Coil): därför inga "horror"/"death coil".
+		-- Inte heller mind control (Dominate Mind, Shadow Command, Chains of Kel'Thuzad, Cause Insanity): den
+		-- styrda spelaren blir fientlig och Tremor-pulsen når bara vänner, så totemet tar bara jordplatsen.
 		words = { "fear", "roar", "scream", "psychic scream", "terrify", "terrifying", "howl", "panic",
-			"intimidating", "charm", "dominate", "mind control", "shadow command", "chains", "insanity",
-			"seduce", "seduction", "sleep" } },
+			"intimidating", "charm", "seduce", "seduction", "sleep" } },
 	{ totem = "Poison Cleansing Totem", label = "POISON CLEANSING", color = { 0.3, 0.9, 0.3 },
 		words = { "poison", "venom", "sting" } },
 	{ totem = "Disease Cleansing Totem", label = "DISEASE CLEANSING", color = { 0.75, 0.6, 0.3 },
@@ -22,12 +23,9 @@ BM.COUNTERS = {
 -- Spell-ID (Classic) -> totem. Matchas före texten. Bara ID:n vi är säkra på; osäkra är kommenterade.
 BM.SPELLS = {
 	[19408] = "Tremor Totem",   -- Magmadar: Panic
-	[20604] = "Tremor Totem",   -- Lucifron: Dominate Mind
 	[18431] = "Tremor Totem",   -- Onyxia: Bellowing Roar
 	[22686] = "Tremor Totem",   -- Nefarian: Bellowing Roar
-	[22667] = "Tremor Totem",   -- Lord Victor Nefarius: Shadow Command (mind control)
-	[28410] = "Tremor Totem",   -- Kel'Thuzad: Chains of Kel'Thuzad (charm)
-	[24327] = "Tremor Totem",   -- Hakkar: Cause Insanity (charm)
+	-- Mind control (Lucifron 20604, Victor Nefarius 22667, Kel'Thuzad 28410, Hakkar 24327): Tremor hjälper inte
 	-- Princess Huhuran: Wyvern Sting är ett gift som söver. Osäkert vilket totem som hjälper bäst (Poison
 	-- Cleansing tar bort giftet men det smäller när det försvinner); samma som "sting"-ordet tills vidare.
 	[26180] = "Poison Cleansing Totem",

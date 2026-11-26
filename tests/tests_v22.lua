@@ -278,3 +278,49 @@ test("v22: installationen skriver inte om en annan karaktärs kontomakron", func
 	check(ns.db.macros.owner == "Mainchar-Realm", "ägaren kvar")
 	ns.db.macros.owner = saved
 end)
+
+test("v22: automatisk imbue påminner inte Elemental/Restoration", function()
+	local RE = ns.Reminders
+	local c = ns.char.spec
+	local last, pick = c.last, ns.char.reminders.imbueSpell
+	ns.char.reminders.imbueSpell = "auto"
+	MOCK.learn("Rockbiter Weapon")
+	ns.Spellbook:Scan()
+	c.last = "restoration"
+	check(RE:ImbueSpell() == nil, "Restoration: ingen imbue")
+	c.last = "elemental"
+	check(RE:ImbueSpell() == nil, "Elemental: ingen imbue")
+	c.last = "enhancement"
+	check(RE:ImbueSpell() ~= nil, "Enhancement: imbue")
+	c.last = "restoration"
+	ns.char.reminders.imbueSpell = "Rockbiter Weapon"
+	check(RE:ImbueSpell() == "Rockbiter Weapon", "vald imbue gäller även för casters")
+	c.last, ns.char.reminders.imbueSpell = last, pick
+	MOCK.runTimers()
+end)
+
+test("v22: situationer med cooldown-totem före ett annat varnas", function()
+	local warn = ns.SituationOrderWarning
+	check(warn({ totems = { "Grounding Totem", "Healing Stream Totem" } }) ~= nil, "Grounding först: varning")
+	check(warn({ totems = { "Healing Stream Totem", "Grounding Totem", "Earthbind Totem" } }) == nil, "sist: ingen varning")
+	for _, s in ipairs(ns.DEFAULT_SITUATIONS.PVP) do
+		check(warn(s) == nil, "standardsetet " .. s.name .. " har cooldown-totems sist")
+	end
+	for _, s in ipairs(ns.DEFAULT_SITUATIONS.PVE) do
+		check(warn(s) == nil, "standardsetet " .. s.name)
+	end
+end)
+
+test("v22: Burst-makrot tar Elemental Mastery om talangen heter så", function()
+	local ME = ns.MacroEngine
+	local hadLM = MOCK.known["Lightning Mastery"]
+	MOCK.unlearn("Lightning Mastery")
+	MOCK.learn("Elemental Mastery")
+	ns.Spellbook:Scan()
+	local body = ME:Render(ME:Template("ele_burst"))
+	check(body:find("/cast Elemental Mastery", 1, true), "Elemental Mastery: " .. body)
+	MOCK.unlearn("Elemental Mastery")
+	if hadLM then MOCK.learn("Lightning Mastery", hadLM) end
+	ns.Spellbook:Scan()
+	MOCK.runTimers()
+end)

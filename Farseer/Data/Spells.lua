@@ -119,6 +119,7 @@ ns.HUD_SPELLS = {
 	{ spell = "Fire Nova" },
 	{ spell = "Nature's Swiftness" },
 	{ spell = "Lightning Mastery" },
+	{ spell = "Elemental Mastery" },   -- samma talang med Classic-namnet: bara den du har visas
 	{ spell = "Rage of the Farseer" },
 	{ spell = "Mana Tide Totem" },
 	{ spell = "Reincarnation" },
@@ -190,6 +191,7 @@ ns.SPEC_SIGNATURE = {
 	{ "restoration", "Riptide" },
 	{ "elemental", "Lava Burst" },
 	{ "elemental", "Lightning Mastery" },
+	{ "elemental", "Elemental Mastery" },
 }
 
 -- Diminishing returns: återställs efter så här många sekunder utan ny CC

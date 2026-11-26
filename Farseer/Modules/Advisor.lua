@@ -201,8 +201,9 @@ function AD:Evaluate()
 		local feared, text = lossOfControl()
 		if feared then locHold = now + 6 end
 		if feared or now < locHold then
-			add("Tremor Totem", 100, feared and ("You are " .. (text and text:lower() or "feared") .. "!") or "You were just feared",
-				nil, "critical")
+			-- Medan du är fearad kan du inte casta: texten säger att det är när fearen släpper
+			add("Tremor Totem", 100, feared and ("You are " .. (text and text:lower() or "feared") .. " — drop Tremor the moment it ends")
+				or "You were just feared", nil, "critical")
 		end
 	end
 

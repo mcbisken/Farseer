@@ -387,14 +387,26 @@ local function immediate()
 end
 
 -- Spelets knapp i containern: våra delar läggs på den, spelet sätter värdena
+-- Spelets aura-knapp kan vara skyddad: storlek och plats sätts då efter striden
+local function placeGameButton(button, size)
+	local function place()
+		button:SetSize(size, size)
+		button:ClearAllPoints()
+		button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	end
+	if InCombatLockdown() and button.IsProtected and ns.get(button.IsProtected, button) == true then
+		ns.afterCombat("procs-btn-" .. tostring(button), place)
+	else
+		place()
+	end
+end
+
 local function initMaelstromButton(box, button)
 	local f = icons.maelstrom
 	local size = f:GetWidth()
 	if type(size) ~= "number" or size <= 0 then size = ns.char.bars.procs.size or 36 end
 	local max = ns.MAELSTROM_MAX or 5
-	button:SetSize(size, size)
-	button:ClearAllPoints()
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	placeGameButton(button, size)
 	noMouse(button)
 	local tex = button:CreateTexture(nil, "ARTWORK")
 	tex:SetPoint("TOPLEFT", 1, -1)
@@ -1027,9 +1039,7 @@ local function initShieldButton(box, button)
 	local f = icons.shield
 	local size = f:GetWidth()
 	if type(size) ~= "number" or size <= 0 then size = ns.char.bars.procs.size or 36 end
-	button:SetSize(size, size)
-	button:ClearAllPoints()
-	button:SetPoint("TOPLEFT", button:GetParent(), "TOPLEFT", 0, 0)
+	placeGameButton(button, size)
 	noMouse(button)
 	local base = button:CreateTexture(nil, "ARTWORK")
 	base:SetPoint("TOPLEFT", 1, -1)
@@ -1628,7 +1638,7 @@ end)
 -- Egna casts (egen ram: castFrame ovan är registrerad för target/focus)
 local playerCastFrame = CreateFrame("Frame")
 playerCastFrame:SetScript("OnEvent", function(_, event, unit, _, spellID)
-	if event ~= "UNIT_SPELLCAST_SUCCEEDED" or unit ~= "player" then return end
+	if event ~= "UNIT_SPELLCAST_SUCCEEDED" or ns.isSecret(unit) or unit ~= "player" then return end
 	local ok, err = pcall(PC.OnPlayerCast, PC, spellID)
 	if not ok then ns.report(err) end
 end)
