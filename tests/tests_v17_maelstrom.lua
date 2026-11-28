@@ -21,7 +21,12 @@ local function fakeContainer(calls, opts)
 			calls.bars = {}
 			function b:SetIcon(t) calls.icon = t end
 			function b:SetApplicationCount(fs, o2) calls.count = fs; calls.countOpts = o2 end
-			function b:SetApplicationBar(bar, o2) table.insert(calls.bars, o2) end
+			function b:SetApplicationBar(bar, o2)
+				if opts.noBars then error("bars") end
+				table.insert(calls.bars, o2)
+				calls.barFrames = calls.barFrames or {}
+				table.insert(calls.barFrames, bar)
+			end
 			function b:SetDurationCooldown(cd) calls.cd = cd end
 			o.initializeFrame(b)
 		end
@@ -51,7 +56,7 @@ test("v17: Maelstrom-container byggs och spelet ritar stackarna", function()
 	check(calls.filter == "HELPFUL", "buffar")
 	check(calls.opts and calls.opts.candidateFilters.includeSpellIDs[408505], "filter på Maelstrom-buffen 408505")
 	check(calls.icon ~= nil, "spelet sätter ikonen")
-	check(calls.count ~= nil, "spelet skriver talet")
+	check(calls.count == nil, "inget spelets tal när siffer-brickan finns")
 	check(calls.cd ~= nil, "tid kvar som svep")
 	local full, stack
 	for _, o in ipairs(calls.bars or {}) do
@@ -61,7 +66,7 @@ test("v17: Maelstrom-container byggs och spelet ritar stackarna", function()
 	check(full, "markering som bara fylls vid 5")
 	check(stack, "stackbar 0-5")
 	check(PC:MaelstromBox() ~= nil, "aktiv")
-	check(PC:MaelstromBoxState() == "active", "debug: active")
+	check(PC:MaelstromBoxState() == "active, number: digit badge", "debug: active (" .. PC:MaelstromBoxState() .. ")")
 	-- Vår ikon blir en svag platshållare, inget eget tal ovanpå spelets
 	local f = _G.FarseerProcmaelstrom
 	MOCK.combat = true
@@ -246,4 +251,55 @@ test("v17: sköldens laddningar via containern, rött vid få laddningar", funct
 	ns.Spellbook:Scan()
 	MOCK.runTimers()
 	check(#MOCK.errors == 0, "inga fel: " .. tostring(MOCK.errors[1]))
+end)
+
+test("Maelstrom: siffer-brickan visar antalet, spelets tal som reserv", function()
+	learnMW()
+	MOCK.combat = false
+	PC:ResetMaelstromBox()
+	local calls = {}
+	local restore = fakeContainer(calls)
+	local box = PC:SetupMaelstromBox()
+	restore()
+	check(box.digits and #box.digits == 5, "en bar per siffra 1-5")
+	for k = 1, 5 do
+		local found
+		for _, o in ipairs(calls.bars) do
+			if o.minApplications == k - 1 and o.maxApplications == k and o.interpolation ~= nil then found = true end
+		end
+		check(found, "siffran " .. k .. " fylls vid >= " .. k)
+	end
+	check(box.badge:IsShown() and not box.fs:IsShown(), "brickan syns, spelets tal dolt")
+	-- Spelet fyller brickan: den får vara kvar
+	MOCK.auras.player = { { name = "Maelstrom Weapon", spellId = 408505, applications = 3, auraInstanceID = 92 } }
+	box.digits[1].GetValue = function() return 1 end
+	PC:UpdateMaelstrom(); PC:UpdateMaelstrom()
+	check(box.digits ~= nil and box.countMode == "digit badge", "brickan kvar när spelet fyller den")
+	-- Spelet fyller den inte (ettan tom fast vi har 3 stackar två gånger): spelets tal tar över
+	box.digits[1].GetValue = function() return 0 end
+	PC:UpdateMaelstrom()
+	check(box.digits ~= nil, "en tom läsning räcker inte")
+	PC:UpdateMaelstrom()
+	check(box.digits == nil and box.fs:IsShown(), "spelets tal tar över")
+	check(PC:MaelstromBoxState():find("badge stayed empty"), "debug säger varför: " .. PC:MaelstromBoxState())
+	-- Klienten tar inte emot barer: spelets tal direkt
+	PC:ResetMaelstromBox()
+	calls = {}
+	restore = fakeContainer(calls, { noBars = true })
+	box = PC:SetupMaelstromBox()
+	restore()
+	check(box.digits == nil and calls.count ~= nil, "utan barer: spelets tal")
+	check(PC:MaelstromBoxState() == "active, number: game text", PC:MaelstromBoxState())
+	MOCK.auras.player = {}
+	PC:ResetMaelstromBox()
+	MOCK.unlearn("Maelstrom Weapon")
+	check(#MOCK.errors == 0, "inga fel: " .. tostring(MOCK.errors[1]))
+end)
+
+test("formatter som ger tom text godtas inte", function()
+	local function fm(fn) return { FormatNumber = function(_, n) return fn(n) end } end
+	check(PC.formatterWorks(fm(function(n) return n == 0 and "" or tostring(n) end), 5), "riktig formatter")
+	check(not PC.formatterWorks(fm(function() return "" end), 5), "tom text för allt")
+	check(not PC.formatterWorks(fm(function(n) return n == 0 and "" or "%d" end), 5), "formatet tolkas inte")
+	check(PC.formatterWorks(fm(function(n) return n == 0 and "" or ("|cffffd100" .. n .. "|r") end), 5), "färgkod runt talet")
 end)

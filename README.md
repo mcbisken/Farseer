@@ -40,7 +40,7 @@ Kopierar `Farseer\` till `C:\SPEL\World of Warcraft\_forever_\Interface\AddOns\F
 | **Bossmods** (v1.6) | DBM/BigWigs: "TREMOR IN 4s" innan bossens fear/charm, Poison/Disease Cleansing innan gift/sjukdom. Pull-timer: lista över det som saknas (sköld, imbue, totems). |
 | **Under vatten** (v1.6) | Varning när luften tar slut (förslag: Water Breathing och antal Shiny Fish Scale) och när Water Breathing har under en minut kvar. |
 | **Varningar** (v1.7) | Prioritet: kritiskt (fear på dig, bossens fear, kick, andning) > råd (totemförslag, låg mana) > info (totem dog/går ut/utom räckhåll, purge). En info-varning kan inte dölja "TREMOR!" längre. Var varningar visas (överallt / grupp+instans / instanser / av), inget ljud för info, tyst solo (inget "DROP TOTEMS!", räckvidds- eller utgångsvarningar när du levlar). |
-| **Maelstrom** (v1.7) | Ritas av spelets egen aura-container (som ShamanForever): ikon, tid kvar, antal (guld vid 5), stackbar och markering vid 5 fungerar även i strid när stackarna är secret. `/farseer debug` visar läget. |
+| **Maelstrom** (v1.7) | Ritas av spelets egen aura-container (som ShamanForever): ikon, tid kvar, antal, stackbar och markering vid 5 fungerar även i strid när stackarna är secret. Antalet är en siffer-bricka nere till höger (1–5, femman i guld, bilderna i `Farseer/Media`, ritas med `tools/make_digits.py`) som spelet fyller via stack-barer; spelets eget tal är reserv. `/farseer debug` visar läget och vilket tal som används. |
 | **Blinkning** (v1.7.1–1.7.4) | Maelstrom blinkar vid 5 (guldram + blixt), Stormstrike, Clearcasting och Flurry blinkar medan de är uppe. Skölden ritas av en egen aura-container: rött blinkar under en täckbild när laddningarna är nere på gränsen (även i strid). "Flash procs" stänger av blinkningen. `/farseer debug` visar "shield display". |
 | **Från andra addons** (v1.8) | Efter en genomgång av ShamanForever, ForeverTotems, TotemWatch, ShamUI m.fl.: högerklick på ett situationsset kastar Call of the Elements med just det setet även i strid (dolda `multispell`-knappar + makro), återuppliva-knapp när någon i gruppen är död (Ancestral Spirit), totemtiderna vita/gula/röda och blinkar de sista 5 s, ingen imbue-påminnelse med fiskespö, "Water Shield i grupp" (Lightning solo), uppläsning av varningar (text-till-tal), tona ned totembarerna utanför strid. |
 | **HUD och keybinds** (v1.9) | Off-hand-swing (dual wield), Flurry-laddningar på swing-baren, Earth Shock/Stormstrike/Lava Burst glöder när de är redo i strid, keybind-läge (`/farseer kb` eller Bindings-fliken): håll musen över en Farseer-knapp och tryck en tangent. |
@@ -92,7 +92,7 @@ Testerna kör mot en mock, inte mot spelet. Saker att kolla första gången i sp
    - Spec: formatet på `GetTalentTabInfo` i Forever.
    - Chattmeddelanden från knappen Skicka i chatten kan vara blockerade i instanser.
 7. v1.7: att Maelstrom-containern (`CreateFrame("AuraContainer", …, "CustomAuraContainerTemplate")`) byggs
-   (`/farseer debug` → "maelstrom display: active" när buffen har synts en gång). Om den säger "unavailable"
+   (`/farseer debug` → "maelstrom display: active, number: digit badge" när buffen har synts en gång). Om den säger "unavailable"
    används den gamla vägen.
 8. v1.8:
    - Call i strid: att säkra knappar med `type = "multispell"` finns i Forever och att `/click` i makrot når dem

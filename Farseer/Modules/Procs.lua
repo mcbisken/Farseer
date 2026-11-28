@@ -395,8 +395,28 @@ local function noMouse(b)
 	pcall(b.SetMouseMotionEnabled, b, false)
 end
 
--- Talet: inget vid 0, 1-4 vita, 5 i guld. Prövas på 0..max först (ett fel i formattern stoppar spelets
--- auror). nil = spelets eget tal (som börjar på 2).
+local function immediate()
+	return Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
+end
+
+-- Prövar en formatter på 0..top: 0 ska ge tom text och varje annat tal måste stå i texten (en formatter
+-- som ger "" för allt skulle annars släcka talet helt). Ett fel i formattern stoppar spelets auror.
+local function formatterWorks(x, top)
+	for n = 0, top do
+		local t = x:FormatNumber(n)
+		if type(t) ~= "string" or ns.isSecret(t) then return false end
+		if n == 0 then
+			if t ~= "" then return false end
+		elseif not t:find(tostring(n), 1, true) then
+			return false
+		end
+	end
+	return true
+end
+PC.formatterWorks = formatterWorks
+
+-- Talet (reserv när siffer-brickan inte går): inget vid 0, 1-4 vita, 5 i guld. nil = spelets eget tal
+-- (som börjar på 2).
 local function countFormatter(max)
 	if not (C_StringUtil and C_StringUtil.CreateNumericRuleFormatter) then return nil end
 	local ok, fm = pcall(function()
@@ -406,18 +426,82 @@ local function countFormatter(max)
 			{ threshold = 1, format = "%d" },
 			{ threshold = max, format = MW_GOLD .. "%d|r" },
 		})
-		for n = 0, max do
-			local t = x:FormatNumber(n)
-			if type(t) ~= "string" or ns.isSecret(t) or (n == 0 and t ~= "") then error("format " .. n) end
-		end
+		if not formatterWorks(x, max) then error("formatter") end
 		return x
 	end)
 	return ok and fm or nil
 end
 
-local function immediate()
-	return Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or 0
+-- Siffer-brickan: en statusbar per siffra (MW1..MW5.tga), full när stackarna >= siffran. Högre siffror
+-- ligger ovanpå och brickan är ogenomskinlig, så den översta fulla visar antalet. Spelet fyller barerna
+-- även när stackarna är secret i strid (samma sätt som stackbaren och 5-markeringen). Spelets eget tal
+-- visar inget vid 1 och kom aldrig fram i spelet, så det är bara reserv om barerna inte går att sätta.
+local MW_DIGIT = "Interface\\AddOns\\Farseer\\Media\\MW%d"
+local MW_DIGITS = 5    -- antal bilder i Media
+
+local function badgeSize(size) return math.max(12, math.floor(size * 0.5)) end
+local function barHeight(size) return math.max(3, math.floor(size / 8)) end
+
+local function placeBadge(box, size)
+	local b = box.badge
+	b:SetSize(badgeSize(size), badgeSize(size))
+	b:ClearAllPoints()
+	b:SetPoint("BOTTOMRIGHT", box.button, "BOTTOMRIGHT", 2, barHeight(size) + 3)
 end
+
+local function makeDigitBadge(box, button, size, max)
+	if max > MW_DIGITS then return false end
+	local badge = CreateFrame("Frame", nil, button)
+	badge:SetFrameLevel(button:GetFrameLevel() + 5)
+	box.badge = badge
+	placeBadge(box, size)
+	box.digits = {}
+	for k = 1, max do
+		local d = CreateFrame("StatusBar", nil, badge)
+		d:SetAllPoints(badge)
+		d:SetStatusBarTexture(MW_DIGIT:format(k))
+		d:SetMinMaxValues(k - 1, k)
+		d:SetValue(k - 1)
+		d:SetFrameLevel(badge:GetFrameLevel() + k)
+		if not pcall(button.SetApplicationBar, button, d,
+			{ minApplications = k - 1, maxApplications = k, interpolation = immediate() }) then
+			badge:Hide()
+			box.badge, box.digits = nil, nil
+			return false
+		end
+		box.digits[k] = d
+	end
+	return true
+end
+
+-- Spelets eget tal (reserv)
+local function useGameCount(box, max)
+	local fm = countFormatter(max)
+	if not pcall(box.button.SetApplicationCount, box.button, box.fs, fm and { formatter = fm } or nil) then
+		pcall(box.button.SetApplicationCount, box.button, box.fs)
+	end
+	box.fs:Show()
+	box.countMode = "game text"
+end
+
+-- Utanför strid går antalet att läsa: fyller spelet inte brickan (ettans bar tom fast vi har stackar två
+-- läsningar i rad) byts den mot spelets tal.
+local function checkBadge(box, n)
+	if not (box.digits and n and n >= 1) then
+		box.badgeMiss = nil
+		return
+	end
+	local v = ns.get(box.digits[1].GetValue, box.digits[1])
+	if type(v) ~= "number" or ns.isSecret(v) then return end
+	if v >= 1 then box.badgeMiss = nil return end
+	box.badgeMiss = (box.badgeMiss or 0) + 1
+	if box.badgeMiss < 2 then return end
+	box.badge:Hide()
+	box.badge, box.digits = nil, nil
+	useGameCount(box, ns.MAELSTROM_MAX or 5)
+	box.countMode = "game text (badge stayed empty)"
+end
+PC.checkMaelstromBadge = checkBadge
 
 -- Spelets knapp i containern: våra delar läggs på den, spelet sätter värdena
 -- Spelets aura-knapp kan vara skyddad: storlek och plats sätts då efter striden
@@ -491,7 +575,7 @@ local function initMaelstromButton(box, button)
 	local bar = CreateFrame("StatusBar", nil, button)
 	bar:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 2, 2)
 	bar:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -2, 2)
-	bar:SetHeight(math.max(3, math.floor(size / 8)))
+	bar:SetHeight(barHeight(size))
 	bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
 	bar:SetStatusBarColor(0.52, 0.69, 1, 1)
 	bar.bg = bar:CreateTexture(nil, "BACKGROUND")
@@ -503,20 +587,23 @@ local function initMaelstromButton(box, button)
 		bar = nil
 	end
 	box.bar = bar
-	-- Talet (spelet skriver det)
+	-- Ram runt ikonen och plats för spelets tal (reserv)
 	local num = CreateFrame("Frame", nil, button)
 	num:SetAllPoints(button)
 	num:SetFrameLevel(button:GetFrameLevel() + 4)
 	local fs = num:CreateFontString(nil, "OVERLAY", "NumberFontNormalLarge")
 	fs:SetPoint("CENTER", 0, 1)
-	local fm = countFormatter(max)
-	if not pcall(button.SetApplicationCount, button, fs, fm and { formatter = fm } or nil) then
-		pcall(button.SetApplicationCount, button, fs)
-	end
 	pcall(fs.SetFontObject, fs, ns.Theme.Font("FarseerFontCount"))
 	ns.Theme.Border(num, { 0, 0, 0, 1 }, "OVERLAY", 0)
 	box.fs = fs
 	box.button = button
+	-- Antalet: siffer-brickan, annars spelets tal
+	if makeDigitBadge(box, button, size, max) then
+		fs:Hide()
+		box.countMode = "digit badge"
+	else
+		useGameCount(box, max)
+	end
 	PC.dirty = true
 end
 
@@ -571,7 +658,8 @@ function PC:MaelstromBox() return mwBox and mwBox.button and mwBox or nil end
 function PC:MaelstromBoxState()
 	if mwBox == nil then return "not built" end
 	if mwBox == false then return "unavailable: " .. tostring(PC.mwBoxError) end
-	return mwBox.button and "active" or "waiting for the buff"
+	if not mwBox.button then return "waiting for the buff" end
+	return "active, number: " .. tostring(mwBox.countMode or "?")
 end
 
 -- Blinkningen på containerns markering (av = fast ram, ingen blixt)
@@ -599,7 +687,8 @@ function PC:StyleMaelstromBox()
 	if b then
 		pcall(b.SetSize, b, size, size)
 		if box.full then pcall(box.full.SetSize, box.full, size * 1.7, size * 1.7) end
-		if box.bar then pcall(box.bar.SetHeight, box.bar, math.max(3, math.floor(size / 8))) end
+		if box.bar then pcall(box.bar.SetHeight, box.bar, barHeight(size)) end
+		if box.badge then pcall(placeBadge, box, size) end
 	end
 end
 
@@ -620,6 +709,7 @@ function PC:UpdateMaelstrom()
 		f.sensor:Hide()
 		if f.sensor.pulse then f.sensor.pulse:Set(false) end
 		f.glow:Off()
+		checkBadge(box, n)
 		-- Ljudet går bara när antalet går att läsa (utanför strid / om spelet visar det)
 		if n then
 			if n >= max and (mwLast or 0) < max and cfg().maelstromSound then
@@ -1063,10 +1153,7 @@ local function shieldFormatter(low)
 			{ threshold = 1, format = "|cffff4040%d|r" },
 			{ threshold = low + 1, format = "%d" },
 		})
-		for n = 0, low + 2 do
-			local t = x:FormatNumber(n)
-			if type(t) ~= "string" or ns.isSecret(t) or (n == 0 and t ~= "") then error("format " .. n) end
-		end
+		if not formatterWorks(x, low + 2) then error("formatter") end
 		return x
 	end)
 	return ok and fm or nil
